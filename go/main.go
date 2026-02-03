@@ -178,7 +178,6 @@ func runQuery(args []string) {
 	}
 
 	// Parse WHERE conditions
-	// Parse WHERE conditions
 	cond, err := query.ParseCondition([]byte(*whereJSON))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing --where JSON: %v\nRaw JSON: %s\n", err, *whereJSON)
