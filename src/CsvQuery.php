@@ -216,9 +216,9 @@ class CsvQuery
         $csvFilename = pathinfo($this->csvPath, PATHINFO_FILENAME);
         if (is_array($column)) {
             sort($column);
-            $name = implode('_', $column);
+            $name = strtolower(implode('_', $column));
         } else {
-            $name = $column;
+            $name = strtolower($column);
         }
         return $this->indexDir . '/' . $csvFilename . '_' . $name . '.cidx';
     }
