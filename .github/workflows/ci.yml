@@ -40,8 +40,8 @@ jobs:
           GOAMD64: v2
         run: |
           cd go
-          go build -ldflags="-s -w" -o ../bin/csvquery
-          chmod +x ../bin/csvquery
+          go build -ldflags="-s -w" -o ../bin/csvquery_linux_amd64
+          chmod +x ../bin/csvquery_linux_amd64
 
       - name: Run PHP tests
         run: ./vendor/bin/phpunit tests/Compatibility --testdox
