@@ -1,0 +1,55 @@
+{
+    "name": "csvquery/csvquery",
+    "description": "High-performance CSV query engine with Go-powered indexing and Yii2-like fluent API",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "csv",
+        "query",
+        "database",
+        "indexing",
+        "performance",
+        "big-data",
+        "active-query",
+        "simd"
+    ],
+    "authors": [
+        {
+            "name": "CsvQuery Team",
+            "email": "team@csvquery.dev"
+        }
+    ],
+    "homepage": "https://github.com/csvquery/csvquery",
+    "support": {
+        "issues": "https://github.com/csvquery/csvquery/issues",
+        "source": "https://github.com/csvquery/csvquery"
+    },
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=8.1",
+        "ext-json": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "suggest": {
+        "ext-posix": "For Unix Domain Socket support (recommended)"
+    },
+    "autoload": {
+        "psr-4": {
+            "CsvQuery\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CsvQuery\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "build:go": "cd go && go build -ldflags=\"-s -w\" -o ../bin/csvquery"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

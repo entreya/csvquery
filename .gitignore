@@ -1,0 +1,41 @@
+# Dependencies
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP
+composer.lock
+phpunit.xml
+.phpunit.result.cache
+coverage/
+
+# Go
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+/tests/indexes/
+/tests/*.csv
+/tests/*.log
+/examples/indexes/
+/examples/*.csv
+
+# Runtime
+*.log
+*.pid
+/tmp/
+*.sock
+
+# Build
+/dist/
