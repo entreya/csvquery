@@ -2,10 +2,6 @@
 package main
 
 import (
-	"github.com/csvquery/csvquery/internal/indexer"
-	"github.com/csvquery/csvquery/internal/query"
-	"github.com/csvquery/csvquery/internal/server"
-	"github.com/csvquery/csvquery/internal/writer"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,12 +10,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+
+	"github.com/csvquery/csvquery/internal/indexer"
+	"github.com/csvquery/csvquery/internal/query"
+	"github.com/csvquery/csvquery/internal/server"
+	"github.com/csvquery/csvquery/internal/writer"
 )
 
 // Version information
 const (
-	Version   = "1.1.0-perf-DEBUG"
-	BuildDate = "2026-02-01"
+	Version   = "1.1.0"
+	BuildDate = "2026-02-03"
 )
 
 // Global state for graceful shutdown

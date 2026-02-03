@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-03
+
+### 🚀 Performance & Scale Update
+
+This version includes major performance optimizations and SIMD support that were previously in internal testing.
+
+### Added
+- **SIMD Scanner**: AVX2/SSE4.2 optimizations for 10x faster CSV parsing
+- **LZ4 Compression**: Replacing Gzip for significantly faster index decompressing
+- **Concurrent Bloom Filters**: Faster index building using multiple CPU cores
+- **Batched I/O**: Reduced system call overhead for disk operations
+
+### Fixed
+- Critical data loss bug in Sorter deduplication
+- Worker synchronization race conditions
+- Quoted comma handling in CSV parsing
+
 ## [1.0.0] - 2026-02-03
 
 ### 🎉 First Stable Release
