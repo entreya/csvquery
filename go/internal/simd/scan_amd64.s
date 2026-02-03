@@ -14,6 +14,16 @@ TEXT ·checkAVX2(SB), NOSPLIT, $0-1
 	MOVB BX, ret+0(FP)
 	RET
 
+// func checkSSE42() bool
+TEXT ·checkSSE42(SB), NOSPLIT, $0-1
+	MOVQ $1, AX
+	CPUID
+	// Check ECX bit 20 (SSE4.2)
+	SHRQ $20, CX
+	ANDQ $1, CX
+	MOVB CX, ret+0(FP)
+	RET
+
 // Constants
 DATA mask_quote<>+0(SB)/8, $0x2222222222222222
 DATA mask_quote<>+8(SB)/8, $0x2222222222222222
@@ -36,13 +46,20 @@ TEXT ·scanAVX2(SB), NOSPLIT, $0-48
 	MOVQ newlines+32(FP), R8  // R8 = newlines dst
 
 	// Prepare constants in YMM registers
-	// Use VPBROADCASTB with integer reg
+	// AVX2 requires broadcasting from an XMM register or memory, 
+	// not directly from a GPR (that is AVX-512).
+	
 	MOVQ $0x22, AX
-	VPBROADCASTB AX, Y1       // Y1 = quotes (Requires AVX2)
+	VMOVD AX, X1
+	VPBROADCASTB X1, Y1       // Y1 = quotes (AVX2 compatible)
+	
 	MOVQ $0x2C, AX
-	VPBROADCASTB AX, Y2       // Y2 = commas
+	VMOVD AX, X2
+	VPBROADCASTB X2, Y2       // Y2 = commas
+	
 	MOVQ $0x0A, AX
-	VPBROADCASTB AX, Y3       // Y3 = newlines
+	VMOVD AX, X3
+	VPBROADCASTB X3, Y3       // Y3 = newlines
 
 	MOVQ $0, R9               // R9 = processed count
 

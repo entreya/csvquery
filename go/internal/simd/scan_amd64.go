@@ -29,11 +29,20 @@ func scanSSE42(data unsafe.Pointer, len int, quotes, commas, newlines unsafe.Poi
 //go:noescape
 func checkAVX2() bool
 
+// checkSSE42 checks if the CPU supports SSE4.2.
+//
+//go:noescape
+func checkSSE42() bool
+
 // useAVX2 is set at init time based on CPU capabilities.
 var useAVX2 bool
 
+// useSSE42 is set at init time based on CPU capabilities.
+var useSSE42 bool
+
 func init() {
 	useAVX2 = checkAVX2()
+	useSSE42 = checkSSE42()
 }
 
 // HasAVX2 returns true if AVX2 is available on this CPU.
@@ -64,20 +73,21 @@ func Scan(input []byte, quotes, commas, newlines []uint64) {
 	processed := 0
 	if useAVX2 {
 		processed = scanAVX2(pInput, size, pQuotes, pCommas, pNewlines)
-	} else {
+	} else if useSSE42 {
 		processed = scanSSE42(pInput, size, pQuotes, pCommas, pNewlines)
 	}
 
-	// Process tail (scalar fallback for remaining bytes < 64)
+	// Process tail (scalar fallback for remaining bytes < 64 or if no SIMD)
 	for i := processed; i < size; i++ {
 		b := input[i]
 		wordIdx := i / 64
 		bitPos := uint(i % 64)
-		if b == '"' {
+		switch b {
+		case '"':
 			quotes[wordIdx] |= 1 << bitPos
-		} else if b == ',' {
+		case ',':
 			commas[wordIdx] |= 1 << bitPos
-		} else if b == '\n' {
+		case '\n':
 			newlines[wordIdx] |= 1 << bitPos
 		}
 	}
@@ -90,12 +100,7 @@ func ScanWithSeparator(input []byte, sep byte, quotes, seps, newlines []uint64) 
 		return
 	}
 
-	// For custom separators, we use the standard scan for quotes/newlines,
-	// then do a separate pass for the separator.
-	// This is slightly slower but maintains simplicity.
-
 	// First, scan quotes and newlines using SIMD
-	// We abuse the commas bitmap for newlines temporarily
 	pInput := unsafe.Pointer(&input[0])
 	pQuotes := unsafe.Pointer(&quotes[0])
 	pNewlines := unsafe.Pointer(&newlines[0])
@@ -107,7 +112,7 @@ func ScanWithSeparator(input []byte, sep byte, quotes, seps, newlines []uint64) 
 		tempCommas := make([]uint64, len(seps))
 		pTempCommas := unsafe.Pointer(&tempCommas[0])
 		processed = scanAVX2(pInput, size, pQuotes, pTempCommas, pNewlines)
-	} else {
+	} else if useSSE42 {
 		tempCommas := make([]uint64, len(seps))
 		pTempCommas := unsafe.Pointer(&tempCommas[0])
 		processed = scanSSE42(pInput, size, pQuotes, pTempCommas, pNewlines)
@@ -118,9 +123,10 @@ func ScanWithSeparator(input []byte, sep byte, quotes, seps, newlines []uint64) 
 		b := input[i]
 		wordIdx := i / 64
 		bitPos := uint(i % 64)
-		if b == '"' {
+		switch b {
+		case '"':
 			quotes[wordIdx] |= 1 << bitPos
-		} else if b == '\n' {
+		case '\n':
 			newlines[wordIdx] |= 1 << bitPos
 		}
 	}

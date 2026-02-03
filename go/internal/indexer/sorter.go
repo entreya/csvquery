@@ -3,8 +3,8 @@ package indexer
 import (
 	"bufio"
 	"bytes"
-	"github.com/csvquery/csvquery/internal/common"
 	"fmt"
+	"github.com/csvquery/csvquery/internal/common"
 	"os"
 	"path/filepath"
 	"slices"

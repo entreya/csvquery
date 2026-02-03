@@ -2,8 +2,8 @@ package indexer
 
 import (
 	"bytes"
-	"github.com/csvquery/csvquery/internal/common"
 	"fmt"
+	"github.com/csvquery/csvquery/internal/common"
 	"os"
 	"path/filepath"
 	"testing"

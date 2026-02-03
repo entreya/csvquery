@@ -1,9 +1,9 @@
 package alter
 
 import (
-	"github.com/csvquery/csvquery/internal/schema"
 	"encoding/csv"
 	"fmt"
+	"github.com/csvquery/csvquery/internal/schema"
 	"os"
 	"strings"
 )

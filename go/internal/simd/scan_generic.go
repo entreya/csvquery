@@ -23,11 +23,12 @@ func Scan(input []byte, quotes, commas, newlines []uint64) {
 	for i, b := range input {
 		wordIdx := i / 64
 		bitPos := uint(i % 64)
-		if b == '"' {
+		switch b {
+		case '"':
 			quotes[wordIdx] |= 1 << bitPos
-		} else if b == ',' {
+		case ',':
 			commas[wordIdx] |= 1 << bitPos
-		} else if b == '\n' {
+		case '\n':
 			newlines[wordIdx] |= 1 << bitPos
 		}
 	}
@@ -39,11 +40,12 @@ func ScanWithSeparator(input []byte, sep byte, quotes, seps, newlines []uint64) 
 	for i, b := range input {
 		wordIdx := i / 64
 		bitPos := uint(i % 64)
-		if b == '"' {
+		switch b {
+		case '"':
 			quotes[wordIdx] |= 1 << bitPos
-		} else if b == sep {
+		case sep:
 			seps[wordIdx] |= 1 << bitPos
-		} else if b == '\n' {
+		case '\n':
 			newlines[wordIdx] |= 1 << bitPos
 		}
 	}

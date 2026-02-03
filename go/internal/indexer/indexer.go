@@ -2,10 +2,10 @@ package indexer
 
 import (
 	"crypto/sha1"
-	"github.com/csvquery/csvquery/internal/common"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/csvquery/csvquery/internal/common"
 	"os"
 	"path/filepath"
 	"runtime"

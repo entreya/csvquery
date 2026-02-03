@@ -14,9 +14,9 @@ package indexer
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/csvquery/csvquery/internal/common"
 	"github.com/csvquery/csvquery/internal/simd"
-	"fmt"
 	"math/bits"
 	"os"
 	"runtime"

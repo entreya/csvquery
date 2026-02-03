@@ -3,9 +3,9 @@ package server
 import (
 	"bufio"
 	"bytes"
-	"github.com/csvquery/csvquery/internal/query"
 	"encoding/json"
 	"fmt"
+	"github.com/csvquery/csvquery/internal/query"
 	"net"
 	"os"
 	"strings"

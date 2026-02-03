@@ -3,9 +3,9 @@ package update
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"github.com/csvquery/csvquery/internal/query"
 	"github.com/csvquery/csvquery/internal/updatemgr"
-	"fmt"
 	"strconv"
 	"strings"
 )

@@ -36,12 +36,29 @@ class CsvQueryTest extends TestCase
 
     public static function tearDownAfterClass(): void
     {
-        // Clean up temp indexes
+        // Clean up temp indexes recursively
         if (is_dir(self::$indexDir)) {
-            array_map('unlink', glob(self::$indexDir . '/*'));
-            rmdir(self::$indexDir);
+            self::removeDirRecursive(self::$indexDir);
         }
         self::$csv = null;
+    }
+
+    /**
+     * Recursively remove a directory.
+     */
+    private static function removeDirRecursive(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            $path = "$dir/$file";
+            is_dir($path) ? self::removeDirRecursive($path) : unlink($path);
+        }
+
+        rmdir($dir);
     }
 
     // ========================================

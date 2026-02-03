@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"github.com/csvquery/csvquery/internal/indexer"
 	"fmt"
+	"github.com/csvquery/csvquery/internal/indexer"
 	"math/rand"
 	"os"
 	"path/filepath"
