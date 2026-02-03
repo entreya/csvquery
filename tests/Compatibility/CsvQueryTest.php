@@ -172,7 +172,7 @@ class CsvQueryTest extends TestCase
     {
         $path = self::$csv->getIndexPath('STATUS');
         $this->assertIsString($path);
-        $this->assertStringContainsString('STATUS', $path);
+        $this->assertStringContainsString('status', $path);
     }
 
     public function testDropIndex(): void
