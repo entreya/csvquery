@@ -44,7 +44,7 @@ func BenchmarkReadRecord(b *testing.B) {
 		Offset: 12345,
 		Line:   67890,
 	}
-	WriteRecord(&buf, rec)
+	_ = WriteRecord(&buf, rec)
 	data := buf.Bytes()
 	reader := bytes.NewReader(data)
 

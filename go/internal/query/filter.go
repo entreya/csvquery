@@ -112,13 +112,14 @@ func (c *Condition) ExtractBestIndexKey() (string, string, bool) {
 // ExtractIndexConditions finds all top-level equality conditions to use for composite indexing
 func (c *Condition) ExtractIndexConditions() map[string]string {
 	res := make(map[string]string)
-	if c.Operator == "AND" {
+	switch c.Operator {
+	case "AND":
 		for _, child := range c.Children {
 			if child.Operator == OpEq {
 				res[child.Column] = fmt.Sprintf("%v", child.Value)
 			}
 		}
-	} else if c.Operator == OpEq {
+	case OpEq:
 		res[c.Column] = fmt.Sprintf("%v", c.Value)
 	}
 	return res

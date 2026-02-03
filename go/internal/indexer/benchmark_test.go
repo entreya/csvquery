@@ -13,19 +13,19 @@ func BenchmarkScanner(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	if _, err := tmpFile.WriteString(content); err != nil {
 		b.Fatal(err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Init scanner
 	s, err := NewScanner(tmpFile.Name(), ",")
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	// Index definitions (scan col 0 and 2)
 	indices := [][]int{{0}, {2}}

@@ -34,12 +34,12 @@ func TestEndToEndPipeline(t *testing.T) {
 		if i%2 == 0 {
 			name = fmt.Sprintf("\"name_%d\"", i)
 		}
-		_, err = f.WriteString(fmt.Sprintf("%d,%s,%d,cat_%d\n", i, name, i*100, i%5))
+		_, err = fmt.Fprintf(f, "%d,%s,%d,cat_%d\n", i, name, i*100, i%5)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	f.Close()
+	_ = f.Close()
 
 	// 2. Configure Indexer
 	outputDir := filepath.Join(tmpDir, "indexes")
@@ -91,7 +91,7 @@ func verifyIndex(t *testing.T, path string, expectedCount int, unique bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	br, err := common.NewBlockReader(f)
 	if err != nil {
@@ -110,10 +110,8 @@ func verifyIndex(t *testing.T, path string, expectedCount int, unique bool) {
 
 		for _, r := range recs {
 			key := string(bytes.TrimRight(r.Key[:], "\x00"))
-			if unique && count > 1 {
-				if key <= lastKey {
-					// t.Errorf("Index order violation: %s <= %s", key, lastKey)
-				}
+			if unique && count > 1 && key <= lastKey {
+				t.Errorf("Index order violation: %s <= %s", key, lastKey)
 			}
 			lastKey = key
 		}

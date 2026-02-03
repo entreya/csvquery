@@ -136,12 +136,12 @@ func (d *UDSDaemon) Start() error {
 func (d *UDSDaemon) Shutdown() {
 	close(d.shutdown)
 	if d.listener != nil {
-		d.listener.Close()
+		_ = d.listener.Close()
 	}
 	d.wg.Wait()
 
 	// Cleanup socket file
-	os.Remove(d.config.SocketPath)
+	_ = os.Remove(d.config.SocketPath)
 	fmt.Println("Daemon shutdown complete")
 }
 
@@ -151,7 +151,7 @@ func (d *UDSDaemon) loadCSV() error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data, err := common.MmapFile(f)
 	if err != nil {
@@ -197,7 +197,7 @@ func (d *UDSDaemon) countRows() int {
 // handleConnection processes a single client connection.
 func (d *UDSDaemon) handleConnection(conn net.Conn) {
 	defer d.wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Acquire worker slot
 	select {
@@ -217,7 +217,7 @@ func (d *UDSDaemon) handleConnection(conn net.Conn) {
 		}
 
 		// Set idle timeout
-		conn.SetReadDeadline(time.Now().Add(d.config.IdleTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(d.config.IdleTimeout))
 
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
@@ -233,9 +233,9 @@ func (d *UDSDaemon) handleConnection(conn net.Conn) {
 		response := d.processRequest(line)
 
 		// Write response
-		conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		conn.Write(response)
-		conn.Write([]byte("\n"))
+		_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		_, _ = conn.Write(response)
+		_, _ = conn.Write([]byte("\n"))
 	}
 }
 

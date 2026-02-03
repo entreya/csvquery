@@ -3,9 +3,10 @@ package alter
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/schema"
 	"os"
 	"strings"
+
+	"github.com/csvquery/csvquery/internal/schema"
 )
 
 // AlterConfig configures the alteration
@@ -54,7 +55,7 @@ func (a *AlterTable) Run() error {
 	reader := csv.NewReader(inputFile)
 	reader.Comma = rune(a.config.Separator[0])
 	header, err := reader.Read()
-	inputFile.Close() // Close immediately after checking header
+	_ = inputFile.Close() // Close immediately after checking header
 
 	if err == nil {
 		for _, col := range header {
@@ -84,7 +85,7 @@ func (a *AlterTable) materialize(s *schema.Schema) error {
 	if err != nil {
 		return err
 	}
-	defer inputFile.Close()
+	defer func() { _ = inputFile.Close() }()
 
 	reader := csv.NewReader(inputFile)
 	reader.Comma = rune(a.config.Separator[0])
@@ -95,7 +96,7 @@ func (a *AlterTable) materialize(s *schema.Schema) error {
 	if err != nil {
 		return err
 	}
-	defer outputFile.Close()
+	defer func() { _ = outputFile.Close() }()
 
 	writer := csv.NewWriter(outputFile)
 	writer.Comma = rune(a.config.Separator[0])
@@ -136,8 +137,8 @@ func (a *AlterTable) materialize(s *schema.Schema) error {
 	}
 
 	// Explicit close to ensure flush
-	outputFile.Close()
-	inputFile.Close()
+	_ = outputFile.Close()
+	_ = inputFile.Close()
 
 	// 5. Atomic Rename
 	if err := os.Rename(tempPath, a.config.CsvPath); err != nil {

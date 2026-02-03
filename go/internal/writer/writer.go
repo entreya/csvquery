@@ -42,13 +42,13 @@ func (w *CsvWriter) Write(headers []string, rows [][]string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Exclusive Lock
 	if err := lockFile(file); err != nil {
 		return fmt.Errorf("failed to lock file: %v", err)
 	}
-	defer unlockFile(file)
+	defer func() { _ = unlockFile(file) }()
 
 	// Check if file is new (size 0)
 	stat, err := file.Stat()

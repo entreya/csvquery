@@ -225,11 +225,11 @@ func LoadBloomFilterMmap(path string) (*BloomFilter, func(), error) {
 	// Mmap the file
 	data, err := MmapFile(f)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, nil, err
 	}
 	// We can close the file descriptor immediately after mmap
-	f.Close()
+	_ = f.Close()
 
 	bloom := DeserializeBloom(data)
 	if bloom == nil {

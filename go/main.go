@@ -184,11 +184,6 @@ func runQuery(args []string) {
 		os.Exit(1)
 	}
 
-	// SA9003 fix: Remove empty branch
-	if cond == nil && *groupBy == "" && !*countOnly {
-		// No-op
-	}
-
 	// Create and run query engine
 	engine := query.NewQueryEngine(query.QueryConfig{
 		CsvPath:      *csvPath,

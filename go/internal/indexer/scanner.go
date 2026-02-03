@@ -47,7 +47,7 @@ func NewScanner(filePath, separator string) (*Scanner, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	stats, err := file.Stat()
 	if err != nil {

@@ -182,7 +182,7 @@ func (q *QueryEngine) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to open index: %w", err)
 	}
-	defer indexFile.Close()
+	defer func() { _ = indexFile.Close() }()
 
 	// Initialize BlockReader
 	br, err := common.NewBlockReader(indexFile)
@@ -213,8 +213,8 @@ func (q *QueryEngine) Run() error {
 	}
 
 	// Identify Candidate Blocks
-	var startBlockIdx int = 0
-	var endBlockIdx int = len(br.Footer.Blocks) - 1
+	startBlockIdx := 0
+	endBlockIdx := len(br.Footer.Blocks) - 1
 
 	if hasSearchKey {
 		// Binary search in Sparse Index to find the first block that COULD contain the key
@@ -265,7 +265,7 @@ func (q *QueryEngine) printMetrics(totalStart, execStart, fetchStart time.Time) 
 func (q *QueryEngine) runCountAll() error {
 	// OPTIMIZATION: Try counting from index metadata first (O(blocks) instead of O(file))
 	if count, ok := q.tryCountFromIndex(); ok {
-		fmt.Fprintln(q.Writer, count)
+		_, _ = fmt.Fprintln(q.Writer, count)
 		return nil
 	}
 
@@ -294,7 +294,7 @@ func (q *QueryEngine) tryCountFromIndex() (int64, bool) {
 	if err != nil {
 		return 0, false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	br, err := common.NewBlockReader(f)
 	if err != nil {
@@ -325,7 +325,7 @@ func (q *QueryEngine) runCountAllViaCsv() error {
 	if err != nil {
 		return fmt.Errorf("failed to open CSV: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Memory-map the file
 	data, err := common.MmapFile(f)
@@ -335,7 +335,7 @@ func (q *QueryEngine) runCountAllViaCsv() error {
 	defer func() { _ = common.MunmapFile(data) }()
 
 	if len(data) == 0 {
-		fmt.Fprintln(q.Writer, 0)
+		_, _ = fmt.Fprintln(q.Writer, 0)
 		return nil
 	}
 
@@ -385,7 +385,7 @@ func (q *QueryEngine) runCountAllViaCsv() error {
 		totalCount--
 	}
 
-	fmt.Fprintln(q.Writer, totalCount)
+	_, _ = fmt.Fprintln(q.Writer, totalCount)
 	return nil
 }
 
@@ -461,7 +461,7 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 			_ = common.MunmapFile(csvData)
 		}
 		if csvF != nil {
-			csvF.Close()
+			_ = csvF.Close()
 		}
 	}()
 
@@ -480,7 +480,7 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 	limitReached := false
 
 	writer := bufio.NewWriter(q.Writer)
-	defer writer.Flush()
+	defer func() { _ = writer.Flush() }()
 
 	searchKeyBytes := []byte(searchKey)
 	rowMap := make(map[string]string, len(headers))
@@ -567,7 +567,7 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 
 			count++
 			if !q.config.CountOnly {
-				fmt.Fprintf(writer, "%d,%d\n", rec.Offset, rec.Line)
+				_, _ = fmt.Fprintf(writer, "%d,%d\n", rec.Offset, rec.Line)
 			}
 
 			if q.config.Limit > 0 && count >= int64(q.config.Limit) {
@@ -578,7 +578,7 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 	}
 
 	if q.config.CountOnly {
-		fmt.Fprintln(writer, count)
+		_, _ = fmt.Fprintln(writer, count)
 	}
 	return nil
 }
@@ -624,7 +624,7 @@ func (q *QueryEngine) runAggregation(br *common.BlockReader, searchKey string, h
 			_ = common.MunmapFile(csvData)
 		}
 		if csvF != nil {
-			csvF.Close()
+			_ = csvF.Close()
 		}
 	}()
 
@@ -829,7 +829,7 @@ func (q *QueryEngine) getHeaderMap() (map[string]int, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	br := bufio.NewReader(f)
 	// Check for BOM (Byte Order Mark)
@@ -977,7 +977,7 @@ func (q *QueryEngine) runFullScan() error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Map headers
 	headers, virtualDefaults, err := q.getHeaderMap()
@@ -1008,7 +1008,7 @@ func (q *QueryEngine) runFullScan() error {
 
 	// Output Writer
 	writer := bufio.NewWriter(q.Writer)
-	defer writer.Flush()
+	defer func() { _ = writer.Flush() }()
 
 	// Metrics
 	execStart := time.Now()
@@ -1078,7 +1078,7 @@ func (q *QueryEngine) runFullScan() error {
 
 		count++
 		if !q.config.CountOnly {
-			fmt.Fprintf(writer, "%d,%d\n", rowOffset, lineNum)
+			_, _ = fmt.Fprintf(writer, "%d,%d\n", rowOffset, lineNum)
 		}
 
 		if q.config.Limit > 0 && count >= int64(q.config.Limit) {
@@ -1089,7 +1089,7 @@ func (q *QueryEngine) runFullScan() error {
 	}
 
 	if q.config.CountOnly {
-		fmt.Fprintln(writer, count)
+		_, _ = fmt.Fprintln(writer, count)
 	}
 
 	// Metrics

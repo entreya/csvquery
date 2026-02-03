@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/common"
 	"os"
 	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
+
+	"github.com/csvquery/csvquery/internal/common"
 
 	"github.com/pierrec/lz4/v4"
 )
@@ -151,24 +152,24 @@ func (s *Sorter) flushChunk() error {
 
 	// Batch write the entire sorted buffer
 	if err := common.WriteBatchRecords(bufferedWriter, s.memBuffer); err != nil {
-		bufferedWriter.Flush()
-		lzWriter.Close()
-		file.Close()
+		_ = bufferedWriter.Flush()
+		_ = lzWriter.Close()
+		_ = file.Close()
 		return err
 	}
 	atomic.AddInt64(&s.bytesWritten, int64(len(s.memBuffer))*common.RecordSize)
 
 	if err := bufferedWriter.Flush(); err != nil {
-		lzWriter.Close()
-		file.Close()
+		_ = lzWriter.Close()
+		_ = file.Close()
 		return err
 	}
 
 	if err := lzWriter.Close(); err != nil {
-		file.Close()
+		_ = file.Close()
 		return err
 	}
-	file.Close()
+	_ = file.Close()
 
 	s.chunkFiles = append(s.chunkFiles, chunkPath)
 	s.chunkDistincts = append(s.chunkDistincts, distinctCount)
@@ -195,7 +196,7 @@ func (s *Sorter) Finalize() (int64, error) {
 		if err != nil {
 			return 0, err
 		}
-		f.Close()
+		_ = f.Close()
 		atomic.StoreInt32(&s.state, int32(StateDone))
 		return 0, nil
 	}
@@ -317,7 +318,7 @@ func (s *Sorter) kWayMerge() (int64, error) {
 	defer func() {
 		for _, f := range files {
 			if f != nil {
-				f.Close()
+				_ = f.Close()
 			}
 		}
 	}()
@@ -327,7 +328,7 @@ func (s *Sorter) kWayMerge() (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer outFile.Close()
+	defer func() { _ = outFile.Close() }()
 
 	// Use BlockWriter for compressed output
 	writer, err := common.NewBlockWriter(outFile)
@@ -402,7 +403,7 @@ func (s *Sorter) kWayMerge() (int64, error) {
 // Cleanup removes temporary files
 func (s *Sorter) Cleanup() {
 	for _, path := range s.chunkFiles {
-		os.Remove(path)
+		_ = os.Remove(path)
 	}
 	s.chunkFiles = nil
 }

@@ -5,13 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/common"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/csvquery/csvquery/internal/common"
 )
 
 // IndexerConfig holds configuration for the indexer
@@ -92,7 +93,7 @@ func (idx *Indexer) Run() error {
 	if idx.config.Workers > 0 {
 		idx.scanner.SetWorkers(idx.config.Workers)
 	}
-	defer idx.scanner.Close()
+	defer func() { _ = idx.scanner.Close() }()
 
 	// Validate columns
 	for _, cols := range idx.colDefs {
@@ -432,7 +433,7 @@ func (idx *Indexer) calculateFingerprint() (csvDNA, error) {
 	if err != nil {
 		return csvDNA{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	stat, err := file.Stat()
 	if err != nil {
@@ -477,7 +478,7 @@ func (idx *Indexer) calculateFingerprint() (csvDNA, error) {
 func (idx *Indexer) Cleanup() {
 	// Remove temp directory
 	if idx.tempDir != "" {
-		os.RemoveAll(idx.tempDir)
+		_ = os.RemoveAll(idx.tempDir)
 	}
 }
 

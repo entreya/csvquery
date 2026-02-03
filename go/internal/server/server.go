@@ -65,7 +65,7 @@ func (s *Daemon) Start() error {
 
 // handleConnection processes a single client connection
 func (s *Daemon) handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// 1. Acquire worker slot (non-blocking preferred? Or blocking queue?)
 	// User Requirement: "If 51 requests come in, the 51st waits in a queue."

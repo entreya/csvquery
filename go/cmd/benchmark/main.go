@@ -3,12 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/indexer"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/csvquery/csvquery/internal/indexer"
 )
 
 func main() {
@@ -21,7 +22,7 @@ func main() {
 	// Generate File
 	fmt.Printf("Generating %d MB CSV...\n", sizeMB)
 	tmpDir, _ := os.MkdirTemp("", "csv_bench")
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	csvPath := filepath.Join(tmpDir, "bench.csv")
 	f, err := os.Create(csvPath)
@@ -30,7 +31,7 @@ func main() {
 	}
 
 	w := bufio.NewWriterSize(f, 64*1024)
-	w.WriteString("id,code,value,description\n")
+	_, _ = w.WriteString("id,code,value,description\n")
 
 	// Write untils size reached
 	bytesWritten := int64(0)
@@ -51,8 +52,8 @@ func main() {
 		n, _ := w.Write(buf)
 		bytesWritten += int64(n)
 	}
-	w.Flush()
-	f.Close()
+	_ = w.Flush()
+	_ = f.Close()
 
 	fmt.Printf("Generated %d rows (%.2f MB)\n", rows, float64(bytesWritten)/1024/1024)
 
