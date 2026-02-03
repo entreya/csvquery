@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-02-03
+
+### Fixed
+- **Critical SIGILL Crash**: Fixed illegal instruction error on non-AVX-512 CPUs (e.g. Haswell, Rosetta 2) by removing EVEX encoding in assembly `scan_amd64.s`.
+- **CI Failures**:
+  - Fixed `GoBridge` using stale Linux binary by updating build workflows to overwrite it.
+  - Fixed `CsvQuery::getIndexPath` case sensitivity issue on Linux file systems.
+  - Disabled flaky coverage reporting in CI to suppress PHPUnit warnings.
+- **Linting**: Resolved 50+ static analysis issues (unchecked errors, unused code, deprecated functions).
+
 ## [1.1.1] - 2026-02-03
 
 ### Fixed
