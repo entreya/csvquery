@@ -36,6 +36,25 @@ GLOBL mask_quote<>(SB), RODATA, $16
 GLOBL mask_comma<>(SB), RODATA, $16
 GLOBL mask_newline<>(SB), RODATA, $16
 
+// AVX2 Constants (32 bytes)
+DATA mask_quote_avx2<>+0(SB)/8, $0x2222222222222222
+DATA mask_quote_avx2<>+8(SB)/8, $0x2222222222222222
+DATA mask_quote_avx2<>+16(SB)/8, $0x2222222222222222
+DATA mask_quote_avx2<>+24(SB)/8, $0x2222222222222222
+GLOBL mask_quote_avx2<>(SB), RODATA, $32
+
+DATA mask_comma_avx2<>+0(SB)/8, $0x2C2C2C2C2C2C2C2C
+DATA mask_comma_avx2<>+8(SB)/8, $0x2C2C2C2C2C2C2C2C
+DATA mask_comma_avx2<>+16(SB)/8, $0x2C2C2C2C2C2C2C2C
+DATA mask_comma_avx2<>+24(SB)/8, $0x2C2C2C2C2C2C2C2C
+GLOBL mask_comma_avx2<>(SB), RODATA, $32
+
+DATA mask_newline_avx2<>+0(SB)/8, $0x0A0A0A0A0A0A0A0A
+DATA mask_newline_avx2<>+8(SB)/8, $0x0A0A0A0A0A0A0A0A
+DATA mask_newline_avx2<>+16(SB)/8, $0x0A0A0A0A0A0A0A0A
+DATA mask_newline_avx2<>+24(SB)/8, $0x0A0A0A0A0A0A0A0A
+GLOBL mask_newline_avx2<>(SB), RODATA, $32
+
 // func scanAVX2(data unsafe.Pointer, len int, quotes, commas, newlines unsafe.Pointer) int
 // Process 64 bytes per iteration
 TEXT ·scanAVX2(SB), NOSPLIT, $0-48
@@ -45,21 +64,10 @@ TEXT ·scanAVX2(SB), NOSPLIT, $0-48
 	MOVQ commas+24(FP), CX    // CX = commas dst
 	MOVQ newlines+32(FP), R8  // R8 = newlines dst
 
-	// Prepare constants in YMM registers
-	// AVX2 requires broadcasting from an XMM register or memory, 
-	// not directly from a GPR (that is AVX-512).
-	
-	MOVQ $0x22, AX
-	VMOVD AX, X1
-	VPBROADCASTB X1, Y1       // Y1 = quotes (AVX2 compatible)
-	
-	MOVQ $0x2C, AX
-	VMOVD AX, X2
-	VPBROADCASTB X2, Y2       // Y2 = commas
-	
-	MOVQ $0x0A, AX
-	VMOVD AX, X3
-	VPBROADCASTB X3, Y3       // Y3 = newlines
+	// Load constants from memory (AVX2 safe, avoids EVEX encoding issues)
+	VMOVDQU mask_quote_avx2<>(SB), Y1   // Y1 = quotes
+	VMOVDQU mask_comma_avx2<>(SB), Y2   // Y2 = commas
+	VMOVDQU mask_newline_avx2<>(SB), Y3 // Y3 = newlines
 
 	MOVQ $0, R9               // R9 = processed count
 
