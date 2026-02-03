@@ -54,7 +54,7 @@ jobs:
           chmod +x ../bin/csvquery_linux_amd64
       
       - name: Run tests
-        run: vendor/bin/phpunit tests/ --coverage-text
+        run: vendor/bin/phpunit tests/
 
   test-go:
     name: Go Tests
