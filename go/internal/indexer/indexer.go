@@ -25,6 +25,7 @@ type IndexerConfig struct {
 	MemoryMB    int     // Memory limit per worker in MB
 	BloomFPRate float64 // Bloom filter false positive rate
 	Verbose     bool    // Enable verbose output
+	Version     string  // version string
 }
 
 // Indexer builds multiple indexes from a CSV file
@@ -57,7 +58,11 @@ func (idx *Indexer) Run() error {
 
 	// Print header
 	fmt.Println("╔══════════════════════════════════════════════════════════════════════════╗")
-	fmt.Println("║     CSVQUERY INDEXER (PIPELINED)                                         ║")
+	content := fmt.Sprintf("CSVQUERY INDEXER (PIPELINED) v%s", idx.config.Version)
+	padding := 74 - len(content)
+	left := padding / 2
+	right := padding - left
+	fmt.Printf("║%*s%s%*s║\n", left, "", content, right, "")
 	fmt.Println("╚══════════════════════════════════════════════════════════════════════════╝")
 	fmt.Printf("\nInput:    %s\n", idx.config.InputFile)
 	fmt.Printf("Output:   %s\n", idx.config.OutputDir)

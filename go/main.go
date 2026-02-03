@@ -135,6 +135,7 @@ func runIndex(args []string) {
 		MemoryMB:    *memoryMB,
 		BloomFPRate: *bloomFP,
 		Verbose:     *verbose,
+		Version:     Version,
 	})
 
 	// Register cleanup
