@@ -293,7 +293,7 @@ class SocketClient
         }
 
         // Start in background, redirect output to debug log (absolute path next to script)
-        $logPath = __DIR__ . '/daemon.log';
+        $logPath = dirname(__DIR__) . '/daemon.log';
         $cmd .= ' > ' . escapeshellarg($logPath) . ' 2>&1 &';
 
         if ($this->debug) {

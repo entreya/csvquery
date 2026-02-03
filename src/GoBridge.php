@@ -91,7 +91,7 @@ class GoBridge
      */
     private function detectBinary(): string
     {
-        $binDir = __DIR__ . '/bin';
+        $binDir = dirname(__DIR__) . '/bin';
 
         // Detect OS
         $os = match (PHP_OS_FAMILY) {
