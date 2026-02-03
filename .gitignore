@@ -23,6 +23,7 @@ coverage/
 *.dll
 *.so
 *.dylib
+go/main
 
 # Test artifacts
 /tests/indexes/
