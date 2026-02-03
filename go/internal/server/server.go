@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/query"
 	"net"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/csvquery/csvquery/internal/query"
 )
 
 // ServerConfig holds configuration for the daemon
@@ -54,8 +55,8 @@ func (s *Daemon) Start() error {
 
 		// Configure socket
 		if tcpConn, ok := conn.(*net.TCPConn); ok {
-			tcpConn.SetKeepAlive(true)
-			tcpConn.SetKeepAlivePeriod(30 * time.Second)
+			_ = tcpConn.SetKeepAlive(true)
+			_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
 		}
 
 		go s.handleConnection(conn)
@@ -83,7 +84,7 @@ func (s *Daemon) handleConnection(conn net.Conn) {
 	// Let's use a 5-second idle timeout, but 500ms *read* timeout once data starts?
 	// User said "Read Deadline (timeout) of 500ms".
 	// Valid interpretation: Ensure queries are sent quickly.
-	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 
 	scanner := bufio.NewScanner(conn)
 	// We read line-by-line (JSON-RCP style)
@@ -100,7 +101,7 @@ func (s *Daemon) handleConnection(conn net.Conn) {
 		// Let's set a distinct Idle Timeout vs Read Timeout.
 		// For now, I'll stricly follow 500ms for read.
 		// If `pfsockopen` is idle, it might timeout and reconnect.
-		conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 
 		if !scanner.Scan() {
 			return // Checking EOF or error
@@ -115,9 +116,9 @@ func (s *Daemon) handleConnection(conn net.Conn) {
 		response := s.processRequest(reqLine)
 
 		// Write Response
-		conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
-		conn.Write(response)
-		conn.Write([]byte("\n")) // Delimiter
+		_ = conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+		_, _ = conn.Write(response)
+		_, _ = conn.Write([]byte("\n")) // Delimiter
 	}
 }
 

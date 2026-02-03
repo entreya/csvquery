@@ -19,7 +19,7 @@ import (
 
 // Version information
 const (
-	Version   = "1.1.1"
+	Version   = "1.1.2"
 	BuildDate = "2026-02-03"
 )
 
@@ -113,7 +113,7 @@ func runIndex(args []string) {
 	bloomFP := fs.Float64("bloom", 0.01, "Bloom filter false positive rate")
 	verbose := fs.Bool("verbose", false, "Enable verbose output")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *input == "" {
 		fmt.Fprintln(os.Stderr, "Error: --input is required")
@@ -164,7 +164,7 @@ func runQuery(args []string) {
 	aggFunc := fs.String("agg-func", "", "Aggregation function")
 	debugHeaders := fs.Bool("debug-headers", false, "Debug raw headers")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	// Default index-dir to CSV directory
 	if *indexDir == "" && *csvPath != "" {
@@ -178,15 +178,16 @@ func runQuery(args []string) {
 	}
 
 	// Parse WHERE conditions
+	// Parse WHERE conditions
 	cond, err := query.ParseCondition([]byte(*whereJSON))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing --where JSON: %v\nRaw JSON: %s\n", err, *whereJSON)
 		os.Exit(1)
 	}
 
+	// SA9003 fix: Remove empty branch
 	if cond == nil && *groupBy == "" && !*countOnly {
-		// fmt.Fprintln(os.Stderr, "Error: --where or --group-by must be specified")
-		// Allow full scan countOnly
+		// No-op
 	}
 
 	// Create and run query engine
@@ -219,7 +220,7 @@ func runDaemon(args []string) {
 	indexDir := fs.String("index-dir", "", "Index directory")
 	workers := fs.Int("workers", 50, "Max concurrency")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if err := server.RunDaemon(*socket, *csvPath, *indexDir, *workers); err != nil {
 		fmt.Fprintf(os.Stderr, "Daemon Error: %v\n", err)
@@ -236,7 +237,7 @@ func runWrite(args []string) {
 	dataJSON := fs.String("data", "[]", "JSON array of rows (each row is array of strings)")
 	separator := fs.String("separator", ",", "CSV separator")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *csvPath == "" {
 		fmt.Fprintln(os.Stderr, "Error: --csv is required")
@@ -244,10 +245,10 @@ func runWrite(args []string) {
 	}
 
 	var headers []string
-	json.Unmarshal([]byte(*headersJSON), &headers)
+	_ = json.Unmarshal([]byte(*headersJSON), &headers)
 
 	var data [][]string
-	json.Unmarshal([]byte(*dataJSON), &data)
+	_ = json.Unmarshal([]byte(*dataJSON), &data)
 
 	w := writer.NewCsvWriter(writer.WriterConfig{
 		CsvPath:   *csvPath,

@@ -7,9 +7,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/common"
-	"github.com/csvquery/csvquery/internal/schema"
-	"github.com/csvquery/csvquery/internal/updatemgr"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,6 +16,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/csvquery/csvquery/internal/common"
+	"github.com/csvquery/csvquery/internal/schema"
+	"github.com/csvquery/csvquery/internal/updatemgr"
 )
 
 // QueryConfig holds query parameters
@@ -258,11 +259,6 @@ func (q *QueryEngine) printMetrics(totalStart, execStart, fetchStart time.Time) 
 	// No-op
 }
 
-const (
-	swarPattern01 = uint64(0x0101010101010101)
-	swarPattern80 = uint64(0x8080808080808080)
-)
-
 // runCountAll counts all data rows in the CSV file (excluding header)
 // This is an optimized path for COUNT(*) without any filters.
 // First tries to count from index metadata (instant), then falls back to CSV scan.
@@ -336,7 +332,7 @@ func (q *QueryEngine) runCountAllViaCsv() error {
 	if err != nil {
 		return fmt.Errorf("failed to mmap CSV: %w", err)
 	}
-	defer common.MunmapFile(data)
+	defer func() { _ = common.MunmapFile(data) }()
 
 	if len(data) == 0 {
 		fmt.Fprintln(q.Writer, 0)
@@ -462,7 +458,7 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 	}
 	defer func() {
 		if csvData != nil {
-			common.MunmapFile(csvData)
+			_ = common.MunmapFile(csvData)
 		}
 		if csvF != nil {
 			csvF.Close()
@@ -625,7 +621,7 @@ func (q *QueryEngine) runAggregation(br *common.BlockReader, searchKey string, h
 	}
 	defer func() {
 		if csvData != nil {
-			common.MunmapFile(csvData)
+			_ = common.MunmapFile(csvData)
 		}
 		if csvF != nil {
 			csvF.Close()
@@ -842,7 +838,7 @@ func (q *QueryEngine) getHeaderMap() (map[string]int, []string, error) {
 		return nil, nil, err
 	}
 	if r != '\uFEFF' {
-		br.UnreadRune()
+		_ = br.UnreadRune()
 	}
 
 	csvReader := csv.NewReader(br)

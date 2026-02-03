@@ -3,10 +3,11 @@ package indexer
 import (
 	"bytes"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/common"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/csvquery/csvquery/internal/common"
 )
 
 func TestEndToEndPipeline(t *testing.T) {
@@ -20,7 +21,10 @@ func TestEndToEndPipeline(t *testing.T) {
 	}
 
 	// Write header
-	f.WriteString("id,name,value,category\n")
+	_, err = f.WriteString("id,name,value,category\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Write 1000 rows
 	dataRows := 10000
@@ -30,7 +34,10 @@ func TestEndToEndPipeline(t *testing.T) {
 		if i%2 == 0 {
 			name = fmt.Sprintf("\"name_%d\"", i)
 		}
-		f.WriteString(fmt.Sprintf("%d,%s,%d,cat_%d\n", i, name, i*100, i%5))
+		_, err = f.WriteString(fmt.Sprintf("%d,%s,%d,cat_%d\n", i, name, i*100, i%5))
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	f.Close()
 

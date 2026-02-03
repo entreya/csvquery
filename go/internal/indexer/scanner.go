@@ -15,8 +15,6 @@ package indexer
 import (
 	"bytes"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/common"
-	"github.com/csvquery/csvquery/internal/simd"
 	"math/bits"
 	"os"
 	"runtime"
@@ -24,14 +22,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
-)
 
-const (
-	pattern01 = 0x0101010101010101
-	pattern80 = 0x8080808080808080
-	ptrSize   = unsafe.Sizeof(uintptr(0))
-	wordSize  = int(ptrSize)
+	"github.com/csvquery/csvquery/internal/common"
+	"github.com/csvquery/csvquery/internal/simd"
 )
 
 // Scanner reads CSV files efficiently using Mmap and Parallelism
@@ -79,7 +72,7 @@ func NewScanner(filePath, separator string) (*Scanner, error) {
 
 	// Read headers from the first line
 	if err := s.readHeaders(); err != nil {
-		s.Close()
+		_ = s.Close()
 		return nil, err
 	}
 
@@ -525,100 +518,6 @@ func (s *Scanner) parseLineSimd(
 	for k := 0; k < len(currentRowValues); k++ {
 		currentRowValues[k] = nil
 	}
-}
-
-// parseAndHandleSWAR parsing logic with reused buffers (legacy, kept for compatibility)
-func (s *Scanner) parseAndHandleSWAR(
-	line []byte,
-	sep byte,
-	offset int64,
-	workerID int,
-	indexDefs [][]int,
-	handler func(workerID int, keys [][]byte, offset, line int64),
-	keys [][]byte,
-	currentRowValues [][]byte,
-	scratchBuf *[]byte,
-) {
-	maxCol := len(currentRowValues) - 1
-	colIdx := 0
-	lineLen := len(line)
-
-	// Scan through the line finding separators
-	for i := 0; i < lineLen && colIdx <= maxCol; {
-		// Use SWAR to find next separator from i
-		nextSep := findNextByteSWAR(line[i:], sep)
-
-		var valBytes []byte
-		if nextSep == -1 {
-			// Last column
-			valBytes = line[i:]
-			// Trim quotes
-			if len(valBytes) >= 2 && valBytes[0] == '"' && valBytes[len(valBytes)-1] == '"' {
-				valBytes = valBytes[1 : len(valBytes)-1]
-			}
-			i = lineLen
-		} else {
-			end := i + nextSep
-			valBytes = line[i:end]
-			// Trim quotes
-			if len(valBytes) >= 2 && valBytes[0] == '"' && valBytes[len(valBytes)-1] == '"' {
-				valBytes = valBytes[1 : len(valBytes)-1]
-			}
-			i = end + 1
-		}
-
-		if colIdx <= maxCol {
-			currentRowValues[colIdx] = valBytes
-		}
-		colIdx++
-	}
-
-	// Populate keys
-	// Clear scratch buffer for reuse if composite keys exist
-	*scratchBuf = (*scratchBuf)[:0]
-
-	for i, indices := range indexDefs {
-		if len(indices) == 1 {
-			idx := indices[0]
-			if idx < len(currentRowValues) && currentRowValues[idx] != nil {
-				keys[i] = currentRowValues[idx]
-			} else {
-				keys[i] = []byte{}
-			}
-		} else {
-			startLen := len(*scratchBuf)
-			*scratchBuf = append(*scratchBuf, '[')
-			for j, idx := range indices {
-				if j > 0 {
-					*scratchBuf = append(*scratchBuf, ',')
-				}
-				*scratchBuf = append(*scratchBuf, '"')
-
-				if idx < len(currentRowValues) {
-					// Append value (optimized simplistic approach)
-					*scratchBuf = append(*scratchBuf, currentRowValues[idx]...)
-				}
-				*scratchBuf = append(*scratchBuf, '"')
-			}
-			*scratchBuf = append(*scratchBuf, ']')
-
-			endLen := len(*scratchBuf)
-			keys[i] = (*scratchBuf)[startLen:endLen]
-		}
-	}
-
-	handler(workerID, keys, offset, 0)
-
-	// Clear currentRowValues slots
-	for k := 0; k < len(currentRowValues); k++ {
-		currentRowValues[k] = nil
-	}
-}
-
-// findNextByteSWAR finds the index of the byte 'c' in 'b' using optimized assembly
-// Returns -1 if not found.
-func findNextByteSWAR(b []byte, c byte) int {
-	return bytes.IndexByte(b, c)
 }
 
 // GetStats returns scanning statistics

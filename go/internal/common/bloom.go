@@ -233,12 +233,12 @@ func LoadBloomFilterMmap(path string) (*BloomFilter, func(), error) {
 
 	bloom := DeserializeBloom(data)
 	if bloom == nil {
-		MunmapFile(data)
+		_ = MunmapFile(data)
 		return nil, nil, fmt.Errorf("invalid bloom filter data")
 	}
 
 	cleanup := func() {
-		MunmapFile(data)
+		_ = MunmapFile(data)
 	}
 
 	return bloom, cleanup, nil

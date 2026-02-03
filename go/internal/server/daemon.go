@@ -6,8 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/common"
-	"github.com/csvquery/csvquery/internal/query"
 	"net"
 	"os"
 	"os/signal"
@@ -15,6 +13,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/csvquery/csvquery/internal/common"
+	"github.com/csvquery/csvquery/internal/query"
 )
 
 // DaemonConfig holds configuration for the Unix socket daemon.
@@ -39,8 +40,6 @@ type UDSDaemon struct {
 	headers   []string
 	headerMap map[string]int
 	separator byte
-
-	mu sync.RWMutex
 }
 
 // NewUDSDaemon creates a new Unix socket daemon.
@@ -111,7 +110,7 @@ func (d *UDSDaemon) Start() error {
 
 		// Set accept deadline to allow periodic shutdown check
 		if ul, ok := listener.(*net.UnixListener); ok {
-			ul.SetDeadline(time.Now().Add(1 * time.Second))
+			_ = ul.SetDeadline(time.Now().Add(1 * time.Second))
 		}
 
 		conn, err := listener.Accept()
@@ -312,7 +311,7 @@ func (d *UDSDaemon) handleCount(req DaemonRequest) []byte {
 
 	countStr := strings.TrimSpace(outBuf.String())
 	var count int
-	fmt.Sscanf(countStr, "%d", &count)
+	_, _ = fmt.Sscanf(countStr, "%d", &count)
 
 	return d.successResponse(map[string]interface{}{"count": count})
 }
@@ -358,8 +357,8 @@ func (d *UDSDaemon) handleSelect(req DaemonRequest) []byte {
 		parts := strings.Split(line, ",")
 		if len(parts) >= 2 {
 			var offset, lineNum int
-			fmt.Sscanf(parts[0], "%d", &offset)
-			fmt.Sscanf(parts[1], "%d", &lineNum)
+			_, _ = fmt.Sscanf(parts[0], "%d", &offset)
+			_, _ = fmt.Sscanf(parts[1], "%d", &lineNum)
 			offsets = append(offsets, map[string]interface{}{
 				"offset": offset,
 				"line":   lineNum,

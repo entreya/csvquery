@@ -2,7 +2,6 @@ package schema
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -26,7 +25,7 @@ func Load(csvPath string) (*Schema, error) {
 		return s, nil
 	}
 
-	data, err := ioutil.ReadFile(s.path)
+	data, err := os.ReadFile(s.path)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +52,7 @@ func (s *Schema) Save() error {
 		return err
 	}
 
-	return ioutil.WriteFile(s.path, data, 0644)
+	return os.WriteFile(s.path, data, 0644)
 }
 
 // AddVirtualColumn registers a new virtual column
