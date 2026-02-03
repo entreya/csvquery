@@ -40,6 +40,19 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
       
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Compile binary
+        env:
+          GOAMD64: v2
+        run: |
+          cd go
+          go build -ldflags="-s -w" -o ../bin/csvquery
+          chmod +x ../bin/csvquery
+      
       - name: Run tests
         run: vendor/bin/phpunit tests/ --coverage-text
 
