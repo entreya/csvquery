@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test-php:
+    name: PHP Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2', '8.3']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: json, posix
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Build Go binary
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Compile binary
+        run: |
+          cd go
+          go build -ldflags="-s -w" -o ../bin/csvquery
+          chmod +x ../bin/csvquery
+
+      - name: Run PHP tests
+        run: ./vendor/bin/phpunit tests/Compatibility --testdox
+
+  test-go:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run Go tests
+        run: |
+          cd go
+          go test -v -race ./internal/...
+
+      - name: Run Go benchmarks
+        run: |
+          cd go
+          go test -bench=. -benchmem -run=^$ ./internal/query/ || true
+
+  build:
+    name: Build Binaries
+    needs: [test-php, test-go]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build all platforms
+        run: |
+          cd go
+          
+          # Linux AMD64
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery-linux-amd64
+          
+          # Linux ARM64
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ../bin/csvquery-linux-arm64
+          
+          # macOS AMD64
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery-darwin-amd64
+          
+          # macOS ARM64 (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../bin/csvquery-darwin-arm64
+          
+          # Windows
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery-windows-amd64.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: bin/csvquery-*
+          retention-days: 30
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Go Vet
+        run: |
+          cd go
+          go vet ./...
+
+      - name: Go Format Check
+        run: |
+          cd go
+          test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)

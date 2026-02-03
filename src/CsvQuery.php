@@ -32,8 +32,8 @@
  * ```
  *
  * @package CsvQuery
- * @author UIMS Evaluation Team
- * @version 1.0.0
+ * @author CsvQuery Team
+ * @version 1.2.0
  */
 
 declare(strict_types=1);

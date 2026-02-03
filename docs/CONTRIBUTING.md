@@ -135,6 +135,45 @@ PHP → GoBridge → SocketClient → UDS → Go Daemon
                 Go CLI (fallback)
 ```
 
+## API Stability Boundaries
+
+> **CRITICAL**: CsvQuery maintains strict backward compatibility. Understanding these boundaries is essential.
+
+### ❌ What CANNOT Be Changed (Public API)
+
+| Component | Protected Elements |
+|-----------|-------------------|
+| **PHP Classes** | All public method signatures in `CsvQuery`, `ActiveQuery`, `GoBridge`, `SocketClient`, `Command`, `BloomFilter`, and Models |
+| **Return Types** | All documented return types (arrays, objects, generators) |
+| **Method Names** | All public method names |
+| **Constructor Parameters** | Named parameters and their types |
+| **Namespace** | `CsvQuery\*` - root namespace must remain |
+| **CLI Commands** | `index`, `query`, `daemon`, `write`, `version` |
+| **Index Format** | `.cidx`, `.bloom`, `_meta.json` file structures |
+
+### ✅ What CAN Be Changed (Internal)
+
+| Component | Changeable Elements |
+|-----------|---------------------|
+| **Private Methods** | Names, signatures, implementation |
+| **Private Properties** | Names, types (if not reflected in public API) |
+| **Internal Variables** | Local variable names |
+| **Go Packages** | Internal package organization |
+| **Performance** | Optimization of existing functionality |
+| **Comments** | Documentation improvements |
+| **Tests** | Test structure and organization |
+
+### Before Modifying Public API
+
+If you believe a public API change is necessary:
+
+1. Open an **issue** to discuss the change
+2. Provide **migration path** for existing users
+3. Add **deprecation warnings** for at least one version
+4. Update **all documentation** and **examples**
+5. Ensure **compatibility tests** are updated
+
+
 ## Performance Considerations
 
 When contributing performance-related changes:

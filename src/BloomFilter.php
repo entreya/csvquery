@@ -64,22 +64,6 @@ class BloomFilter
     }
 
     /**
-     * Create from serialized data.
-     *
-     * @param int $size Size in bits
-     * @param int $hashCount Number of hash functions
-     * @param int $count Number of elements
-     * @param string $bits Bit array
-     */
-    private function __construct_internal(int $size, int $hashCount, int $count, string $bits)
-    {
-        $this->size = $size;
-        $this->hashCount = $hashCount;
-        $this->count = $count;
-        $this->bits = $bits;
-    }
-
-    /**
      * Load from file.
      *
      * @param string $path Path to .bloom file
