@@ -2,7 +2,7 @@
 #include "textflag.h"
 
 // func ScanSeparatorsAVX2(data []byte, sep byte) uint64
-TEXT ·ScanSeparatorsAVX2(SB), NOSPLIT, $8-32
+TEXT ·ScanSeparatorsAVX2(SB), NOSPLIT, $8-40
     MOVQ    data_base+0(FP), SI    // SI = data base pointer
     MOVQ    data_len+8(FP), CX     // CX = data length
     MOVB    sep+24(FP), AL         // AL = separator byte
@@ -56,7 +56,7 @@ ret_avx2:
 
 // func ScanSeparatorsAVX512(data []byte, sep byte) uint64
 // Requirements: AVX512F, AVX512BW
-TEXT ·ScanSeparatorsAVX512(SB), NOSPLIT, $8-32
+TEXT ·ScanSeparatorsAVX512(SB), NOSPLIT, $8-40
     MOVQ    data_base+0(FP), SI    // SI = data base pointer
     MOVQ    data_len+8(FP), CX     // CX = data length
     MOVB    sep+24(FP), AL         // AL = separator byte
