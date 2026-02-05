@@ -39,9 +39,9 @@ jobs:
         env:
           GOAMD64: v2
         run: |
-          cd go
-          go build -ldflags="-s -w" -o ../bin/csvquery_linux_amd64
-          chmod +x ../bin/csvquery_linux_amd64
+          cd src/go
+          go build -ldflags="-s -w" -o ../../bin/csvquery_linux_amd64
+          chmod +x ../../bin/csvquery_linux_amd64
 
       - name: Run PHP tests
         run: ./vendor/bin/phpunit tests/Compatibility --testdox
@@ -62,12 +62,12 @@ jobs:
         env:
           GOAMD64: v2
         run: |
-          cd go
+          cd src/go
           go test -v -race ./internal/...
 
       - name: Run Go benchmarks
         run: |
-          cd go
+          cd src/go
           go test -bench=. -benchmem -run=^$ ./internal/query/ || true
 
   build:
@@ -86,22 +86,22 @@ jobs:
 
       - name: Build all platforms
         run: |
-          cd go
+          cd src/go
           
           # Linux AMD64
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery-linux-amd64
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../../bin/csvquery-linux-amd64
           
           # Linux ARM64
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ../bin/csvquery-linux-arm64
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ../../bin/csvquery-linux-arm64
           
           # macOS AMD64
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery-darwin-amd64
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o ../../bin/csvquery-darwin-amd64
           
           # macOS ARM64 (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../bin/csvquery-darwin-arm64
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../../bin/csvquery-darwin-arm64
           
           # Windows
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery-windows-amd64.exe
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ../../bin/csvquery-windows-amd64.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -124,10 +124,10 @@ jobs:
 
       - name: Go Vet
         run: |
-          cd go
+          cd src/go
           go vet ./...
 
       - name: Go Format Check
         run: |
-          cd go
+          cd src/go
           test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
