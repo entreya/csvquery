@@ -9,9 +9,11 @@ on:
 jobs:
   test-php:
     name: PHP Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         php-version: ['8.1', '8.2', '8.3']
 
     steps:
@@ -21,7 +23,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: json, posix
+          extensions: json
           coverage: none
 
       - name: Validate composer.json
@@ -30,25 +32,33 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
-      - name: Build Go binary
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
       
-      - name: Compile binary
-        env:
-          GOAMD64: v2
+      - name: Compile binary (Unix)
+        if: runner.os != 'Windows'
         run: |
           cd src/go
-          go build -ldflags="-s -w" -o ../../bin/csvquery_linux_amd64
-          chmod +x ../../bin/csvquery_linux_amd64
+          go build -ldflags="-s -w" -o ../../bin/csvquery
+          chmod +x ../../bin/csvquery
 
+      - name: Compile binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd src/go
+          go build -ldflags="-s -w" -o ../../bin/csvquery.exe
+          
       - name: Run PHP tests
         run: ./vendor/bin/phpunit tests/Compatibility --testdox
 
   test-go:
     name: Go Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     
     steps:
       - uses: actions/checkout@v4
@@ -59,8 +69,6 @@ jobs:
           go-version: '1.21'
 
       - name: Run Go tests
-        env:
-          GOAMD64: v2
         run: |
           cd src/go
           go test -v -race ./internal/...
