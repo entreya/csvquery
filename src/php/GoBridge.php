@@ -429,8 +429,8 @@ class GoBridge
 
             if ($ready) {
                 foreach ([$processPipes[1], $processPipes[2]] as $pipe) {
-                    // Read chunk (non-blocking)
-                    $data = fread($pipe, 8192);
+                    // Read chunk (non-blocking) - 64KB buffer
+                    $data = fread($pipe, 65536);
                     
                     if ($data !== false && $data !== '') {
                         $gotData = true;

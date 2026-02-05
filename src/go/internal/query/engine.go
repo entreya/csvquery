@@ -479,7 +479,8 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 	skipped := 0
 	limitReached := false
 
-	writer := bufio.NewWriter(q.Writer)
+	// Use 64KB buffer for faster IO, especially on Windows pipes
+	writer := bufio.NewWriterSize(q.Writer, 65536)
 	defer func() { _ = writer.Flush() }()
 
 	searchKeyBytes := []byte(searchKey)
