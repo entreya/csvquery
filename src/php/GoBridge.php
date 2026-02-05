@@ -399,6 +399,7 @@ class GoBridge
         $stdout = '';
         $stderr = '';
         $isWindows = PHP_OS_FAMILY === 'Windows';
+        $exitCodeFromStatus = null;
 
         while (true) {
             $read = [];
@@ -452,6 +453,7 @@ class GoBridge
                     // Usually means EOF or error, but let's check status just in case.
                     $status = proc_get_status($process);
                     if (!$status['running']) {
+                        $exitCodeFromStatus = $status['exitcode'];
                         // Gather any remaining bytes
                         foreach ([$processPipes[1], $processPipes[2]] as $pipe) {
                              while (($data = fread($pipe, 8192)) !== false && $data !== '') {
@@ -476,6 +478,7 @@ class GoBridge
                 if (!$gotData) {
                     $status = proc_get_status($process);
                     if (!$status['running']) {
+                        $exitCodeFromStatus = $status['exitcode'];
                         // Consume remaining
                          foreach ([$processPipes[1], $processPipes[2]] as $pipe) {
                              while (($data = fread($pipe, 8192)) !== false && $data !== '') {
@@ -503,6 +506,11 @@ class GoBridge
         fclose($processPipes[2]);
 
         $exitCode = proc_close($process);
+
+        // If proc_close returned -1 (error/unknown) but we captured the exit code earlier, use it.
+        if ($exitCode === -1 && $exitCodeFromStatus !== null) {
+            $exitCode = $exitCodeFromStatus;
+        }
 
         if ($exitCode !== 0) {
             throw new \RuntimeException(
