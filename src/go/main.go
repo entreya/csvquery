@@ -19,7 +19,7 @@ import (
 
 // Version information
 const (
-	Version   = "1.6.0"
+	Version   = "1.6.1"
 	BuildDate = "2026-02-05"
 )
 
