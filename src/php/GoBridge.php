@@ -381,50 +381,90 @@ class GoBridge
             2 => ['pipe', 'w'],  // stderr
         ];
 
+        // Windows-specific options for proc_open mostly relate to bypassing shell,
+        // which array-args argument does automatically in newer PHP versions.
         $process = proc_open($command, $descriptors, $processPipes);
 
         if (!is_resource($process)) {
             throw new \RuntimeException("Failed to start csvquery process");
         }
 
-        // Close stdin
+        // Close stdin immediately as we don't write to it
         fclose($processPipes[0]);
 
-        // Read output
+        // Set streams to non-blocking mode for manuals polling loop
+        stream_set_blocking($processPipes[1], false);
+        stream_set_blocking($processPipes[2], false);
+
         $stdout = '';
         $stderr = '';
+        $isWindows = PHP_OS_FAMILY === 'Windows';
 
         while (true) {
-            $read = [$processPipes[1], $processPipes[2]];
-            $write = null;
-            $except = null;
+            $read = [];
+            if (!feof($processPipes[1])) $read[] = $processPipes[1];
+            if (!feof($processPipes[2])) $read[] = $processPipes[2];
 
-            if (false === stream_select($read, $write, $except, 1)) {
+            if (empty($read)) {
                 break;
             }
 
-            foreach ($read as $pipe) {
-                $data = fread($pipe, 8192);
-                if ($data === false || $data === '') {
-                    continue;
-                }
+            $ready = false;
 
-                if ($pipe === $processPipes[1]) {
-                    $stdout .= $data;
-                    if ($passthrough) {
-                        echo $data;
-                    }
-                } else {
-                    $stderr .= $data;
-                    if ($passthrough) {
-                        fwrite(STDERR, $data);
-                    }
-                }
+            if ($isWindows) {
+                // Windows: stream_select() works ONLY on sockets, not process file handles.
+                // Fallback: poll with sleep
+                $ready = true; // Always attempt read in non-blocking loop
+                usleep(20000); // 20ms sleep to prevent CPU spin
+            } else {
+                // Linux/Mac: Use stream_select for efficiency
+                $write = null;
+                $except = null;
+                // Wait up to 200ms
+                $result = stream_select($read, $write, $except, 0, 200000);
+                if ($result === false) break;
+                $ready = ($result > 0);
             }
 
-            // Check if both pipes are closed
-            if (feof($processPipes[1]) && feof($processPipes[2])) {
-                break;
+            if ($ready) {
+                $gotData = false;
+                foreach ([$processPipes[1], $processPipes[2]] as $pipe) {
+                    // Read chunk (non-blocking)
+                    $data = fread($pipe, 8192);
+                    
+                    if ($data !== false && $data !== '') {
+                        $gotData = true;
+                        if ($pipe === $processPipes[1]) {
+                            $stdout .= $data;
+                            if ($passthrough) echo $data;
+                        } else {
+                            $stderr .= $data;
+                            if ($passthrough) {
+                                fwrite(STDERR, $data);
+                            }
+                        }
+                    }
+                }
+                
+                // If we didn't get data but streams are supposedly open, check if process died
+                if (!$gotData) {
+                    $status = proc_get_status($process);
+                    if (!$status['running']) {
+                        // Gather any remaining bytes
+                        foreach ([$processPipes[1], $processPipes[2]] as $pipe) {
+                             while (($data = fread($pipe, 8192)) !== false && $data !== '') {
+                                 if ($pipe === $processPipes[1]) {
+                                     $stdout .= $data;
+                                     if ($passthrough) echo $data;
+                                 } else {
+                                     $stderr .= $data;
+                                     if ($passthrough) fwrite(STDERR, $data);
+                                 }
+                             }
+                        }
+                        break;
+                    }
+                }
             }
         }
 
