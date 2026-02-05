@@ -6,10 +6,10 @@
 
 ```mermaid
 graph TD
-    User([User Application]) -->|Fluent API| PHP[PHP Library (CsvQuery)]
-    PHP -->|CLI Arguments / Socket| Go[Go Binary (csvquery)]
-    Go -->|File I/O| CSV[CSV File]
-    Go -->|File I/O| Index[Index Files (.cidx, .bloom)]
+    User([User Application]) -->|Fluent API| PHP["PHP Library (CsvQuery)"]
+    PHP -->|CLI Arguments / Socket| Go["Go Binary (csvquery)"]
+    Go -->|File I/O| CSV["CSV File"]
+    Go -->|File I/O| Index["Index Files (.cidx, .bloom)"]
     Go -->|Stream Offsets| PHP
     PHP -->|Seek & Read| CSV
     PHP -->|Hydrated Rows| User
