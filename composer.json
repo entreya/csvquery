@@ -37,7 +37,7 @@
     },
     "autoload": {
         "psr-4": {
-            "CsvQuery\\": "src/"
+            "CsvQuery\\": "src/php/"
         }
     },
     "autoload-dev": {
@@ -47,7 +47,7 @@
     },
     "scripts": {
         "test": "phpunit",
-        "build:go": "cd go && go build -ldflags=\"-s -w\" -o ../bin/csvquery"
+        "build:go": "cd src/go && go build -ldflags=\"-s -w\" -o ../../bin/csvquery"
     },
     "config": {
         "sort-packages": true

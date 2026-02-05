@@ -86,25 +86,25 @@ func NewSorter(name, outputPath, tempDir string, memoryLimit int, bloom *common.
 
 // Add adds a record to the sorter
 // When buffer is full, it's sorted and written to a temp file
-func (s *Sorter) Add(record common.IndexRecord) error {
-	s.memBuffer = append(s.memBuffer, record)
-	atomic.AddInt64(&s.totalRecords, 1)
+func (sorter *Sorter) Add(record common.IndexRecord) error {
+	sorter.memBuffer = append(sorter.memBuffer, record)
+	atomic.AddInt64(&sorter.totalRecords, 1)
 
 	// Flush chunk when full
-	if len(s.memBuffer) >= s.chunkSize {
-		return s.flushChunk()
+	if len(sorter.memBuffer) >= sorter.chunkSize {
+		return sorter.flushChunk()
 	}
 	return nil
 }
 
 // flushChunk sorts the current buffer and writes to a temp file
-func (s *Sorter) flushChunk() error {
-	if len(s.memBuffer) == 0 {
+func (sorter *Sorter) flushChunk() error {
+	if len(sorter.memBuffer) == 0 {
 		return nil
 	}
 
 	// Sort by key, then offset (Zero Allocation)
-	slices.SortFunc(s.memBuffer, func(a, b common.IndexRecord) int {
+	slices.SortFunc(sorter.memBuffer, func(a, b common.IndexRecord) int {
 		cmp := bytes.Compare(a.Key[:], b.Key[:])
 		if cmp != 0 {
 			return cmp
@@ -120,7 +120,7 @@ func (s *Sorter) flushChunk() error {
 	})
 
 	// Write to temp file
-	chunkPath := filepath.Join(s.tempDir, fmt.Sprintf("chunk_%d.tmp", len(s.chunkFiles)))
+	chunkPath := filepath.Join(sorter.tempDir, fmt.Sprintf("chunk_%d.tmp", len(sorter.chunkFiles)))
 	file, err := os.Create(chunkPath)
 	if err != nil {
 		return fmt.Errorf("failed to create chunk file: %w", err)
@@ -143,7 +143,7 @@ func (s *Sorter) flushChunk() error {
 	var lastKey [64]byte
 
 	// Count distinct keys (and verify order if needed, but we just sorted)
-	for i, rec := range s.memBuffer {
+	for i, rec := range sorter.memBuffer {
 		if i == 0 || rec.Key != lastKey {
 			distinctCount++
 			lastKey = rec.Key
@@ -151,13 +151,13 @@ func (s *Sorter) flushChunk() error {
 	}
 
 	// Batch write the entire sorted buffer
-	if err := common.WriteBatchRecords(bufferedWriter, s.memBuffer); err != nil {
+	if err := common.WriteBatchRecords(bufferedWriter, sorter.memBuffer); err != nil {
 		_ = bufferedWriter.Flush()
 		_ = lzWriter.Close()
 		_ = file.Close()
 		return err
 	}
-	atomic.AddInt64(&s.bytesWritten, int64(len(s.memBuffer))*common.RecordSize)
+	atomic.AddInt64(&sorter.bytesWritten, int64(len(sorter.memBuffer))*common.RecordSize)
 
 	if err := bufferedWriter.Flush(); err != nil {
 		_ = lzWriter.Close()
@@ -171,40 +171,40 @@ func (s *Sorter) flushChunk() error {
 	}
 	_ = file.Close()
 
-	s.chunkFiles = append(s.chunkFiles, chunkPath)
-	s.chunkDistincts = append(s.chunkDistincts, distinctCount)
-	s.memBuffer = s.memBuffer[:0] // Clear buffer
+	sorter.chunkFiles = append(sorter.chunkFiles, chunkPath)
+	sorter.chunkDistincts = append(sorter.chunkDistincts, distinctCount)
+	sorter.memBuffer = sorter.memBuffer[:0] // Clear buffer
 
 	return nil
 }
 
 // Finalize performs the final merge and writes the output file
 // Returns the count of distinct keys
-func (s *Sorter) Finalize() (int64, error) {
+func (sorter *Sorter) Finalize() (int64, error) {
 	// Flush any remaining buffer
-	if err := s.flushChunk(); err != nil {
+	if err := sorter.flushChunk(); err != nil {
 		return 0, err
 	}
 
 	// Transition to Merging
-	atomic.StoreInt32(&s.state, int32(StateMerging))
+	atomic.StoreInt32(&sorter.state, int32(StateMerging))
 
 	// ALWAYS perform k-way merge to ensure output is compressed (even if 1 chunk)
-	if len(s.chunkFiles) == 0 {
+	if len(sorter.chunkFiles) == 0 {
 		// Empty file
-		f, err := os.Create(s.outputPath)
+		f, err := os.Create(sorter.outputPath)
 		if err != nil {
 			return 0, err
 		}
 		_ = f.Close()
-		atomic.StoreInt32(&s.state, int32(StateDone))
+		atomic.StoreInt32(&sorter.state, int32(StateDone))
 		return 0, nil
 	}
 
 	// K-way merge (reads raw chunks -> writes compressed output)
-	count, err := s.kWayMerge()
+	count, err := sorter.kWayMerge()
 	if err == nil {
-		atomic.StoreInt32(&s.state, int32(StateDone))
+		atomic.StoreInt32(&sorter.state, int32(StateDone))
 	}
 	return count, err
 }
@@ -219,39 +219,39 @@ type mergeItem struct {
 // container/heap uses interface{} boxing which triggers allocations.
 type manualHeap []mergeItem
 
-func (h manualHeap) Len() int { return len(h) }
+func (mergeHeap manualHeap) Len() int { return len(mergeHeap) }
 func (h manualHeap) Less(i, j int) bool {
 	return h[i].Less(h[j])
 }
 func (h manualHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
-func (h *manualHeap) Push(x mergeItem) {
-	*h = append(*h, x)
-	h.up(len(*h) - 1)
+func (mergeHeap *manualHeap) Push(x mergeItem) {
+	*mergeHeap = append(*mergeHeap, x)
+	mergeHeap.up(len(*mergeHeap) - 1)
 }
 
-func (h *manualHeap) Pop() mergeItem {
-	old := *h
+func (mergeHeap *manualHeap) Pop() mergeItem {
+	old := *mergeHeap
 	n := len(old)
 	x := old[0]
 	old[0] = old[n-1]
-	*h = old[0 : n-1]
-	h.down(0, n-1)
+	*mergeHeap = old[0 : n-1]
+	mergeHeap.down(0, n-1)
 	return x
 }
 
-func (h *manualHeap) up(j int) {
+func (mergeHeap *manualHeap) up(j int) {
 	for {
 		i := (j - 1) / 2 // parent
-		if i == j || !(*h)[j].Less((*h)[i]) {
+		if i == j || !(*mergeHeap)[j].Less((*mergeHeap)[i]) {
 			break
 		}
-		h.Swap(i, j)
+		mergeHeap.Swap(i, j)
 		j = i
 	}
 }
 
-func (h *manualHeap) down(i0, n int) {
+func (mergeHeap *manualHeap) down(i0, n int) {
 	i := i0
 	for {
 		j1 := 2*i + 1
@@ -259,13 +259,13 @@ func (h *manualHeap) down(i0, n int) {
 			break
 		}
 		j := j1 // left child
-		if j2 := j1 + 1; j2 < n && (*h)[j2].Less((*h)[j1]) {
+		if j2 := j1 + 1; j2 < n && (*mergeHeap)[j2].Less((*mergeHeap)[j1]) {
 			j = j2 // = 2*i + 2  // right child
 		}
-		if !(*h)[j].Less((*h)[i]) {
+		if !(*mergeHeap)[j].Less((*mergeHeap)[i]) {
 			break
 		}
-		h.Swap(j, i)
+		mergeHeap.Swap(j, i)
 		i = j
 	}
 }
@@ -280,23 +280,23 @@ func (m mergeItem) Less(other mergeItem) bool {
 }
 
 // kWayMerge performs k-way merge of sorted chunk files
-func (s *Sorter) kWayMerge() (int64, error) {
-	k := len(s.chunkFiles)
+func (sorter *Sorter) kWayMerge() (int64, error) {
+	chunkCount := len(sorter.chunkFiles)
 
 	// Open all chunk files
-	readers := make([]*bufio.Reader, k) // Changed to bufio.Reader
-	files := make([]*os.File, k)
+	readers := make([]*bufio.Reader, chunkCount) // Changed to bufio.Reader
+	files := make([]*os.File, chunkCount)
 
-	for i, path := range s.chunkFiles {
-		f, err := os.Open(path)
+	for i, path := range sorter.chunkFiles {
+		chunkFile, err := os.Open(path)
 		if err != nil {
 			return 0, fmt.Errorf("failed to open chunk %d: %w", i, err)
 		}
-		files[i] = f
+		files[i] = chunkFile
 		// Temp files are now LZ4 compressed
 		// lz4.NewReader wraps the file directly
 		// BUFFERING IS CRITICAL: We read small records.
-		lzReader := lz4.NewReader(f)
+		lzReader := lz4.NewReader(chunkFile)
 
 		// Get reader from pool
 		bufReader := bufReaderPool.Get().(*bufio.Reader)
@@ -316,15 +316,15 @@ func (s *Sorter) kWayMerge() (int64, error) {
 
 	// Close all files on exit
 	defer func() {
-		for _, f := range files {
-			if f != nil {
-				_ = f.Close()
+		for _, outputFile := range files {
+			if outputFile != nil {
+				_ = outputFile.Close()
 			}
 		}
 	}()
 
 	// Create output file
-	outFile, err := os.Create(s.outputPath)
+	outFile, err := os.Create(sorter.outputPath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create output file: %w", err)
 	}
@@ -337,20 +337,20 @@ func (s *Sorter) kWayMerge() (int64, error) {
 	}
 
 	// Initialize heap with first record from each chunk
-	h := make(manualHeap, 0, k)
+	mergeHeap := make(manualHeap, 0, chunkCount)
 
-	for i := 0; i < k; i++ {
+	for i := 0; i < chunkCount; i++ {
 		rec, err := common.ReadRecord(readers[i])
 		if err == nil {
-			h = append(h, mergeItem{record: rec, source: i})
+			mergeHeap = append(mergeHeap, mergeItem{record: rec, source: i})
 		}
 	}
 	// Init heap (floyd's algorithm or just manual push... manual push is slower for init but K is small)
 	// We just appended, now simplify heapify
 	// Go's heap.Init is O(n). We can just do that manually:
-	n := len(h)
+	n := len(mergeHeap)
 	for i := n/2 - 1; i >= 0; i-- {
-		h.down(i, n)
+		mergeHeap.down(i, n)
 	}
 
 	var distinctCount int64 = 0
@@ -358,21 +358,21 @@ func (s *Sorter) kWayMerge() (int64, error) {
 	var firstRecord = true
 
 	// Merge phase
-	for len(h) > 0 {
+	for len(mergeHeap) > 0 {
 		// Pop smallest
-		item := h.Pop()
-		rec := item.record
+		heapItem := mergeHeap.Pop()
+		rec := heapItem.record
 
 		// Check distinct
 		if firstRecord || rec.Key != lastKey {
 			distinctCount++
 
 			// Add to bloom filter if distinct
-			if s.bloom != nil {
+			if sorter.bloom != nil {
 				// We need string key for Bloom.
 				// Trim nulls
 				keyStr := string(bytes.TrimRight(rec.Key[:], "\x00"))
-				s.bloom.Add(keyStr)
+				sorter.bloom.Add(keyStr)
 			}
 
 			lastKey = rec.Key
@@ -383,12 +383,12 @@ func (s *Sorter) kWayMerge() (int64, error) {
 		if err := writer.WriteRecord(rec); err != nil {
 			return 0, err
 		}
-		atomic.AddInt64(&s.mergedRecords, 1)
+		atomic.AddInt64(&sorter.mergedRecords, 1)
 
 		// Read next from same source
-		nextRec, err := common.ReadRecord(readers[item.source])
+		nextRec, err := common.ReadRecord(readers[heapItem.source])
 		if err == nil {
-			h.Push(mergeItem{record: nextRec, source: item.source})
+			mergeHeap.Push(mergeItem{record: nextRec, source: heapItem.source})
 		}
 	}
 
@@ -401,11 +401,11 @@ func (s *Sorter) kWayMerge() (int64, error) {
 }
 
 // Cleanup removes temporary files
-func (s *Sorter) Cleanup() {
-	for _, path := range s.chunkFiles {
+func (sorter *Sorter) Cleanup() {
+	for _, path := range sorter.chunkFiles {
 		_ = os.Remove(path)
 	}
-	s.chunkFiles = nil
+	sorter.chunkFiles = nil
 }
 
 // State constants
@@ -424,21 +424,21 @@ type SorterStats struct {
 }
 
 // GetStats returns current progress stats
-func (s *Sorter) GetStats() SorterStats {
+func (sorter *Sorter) GetStats() SorterStats {
 	// Atomic load state
-	state := int(atomic.LoadInt32(&s.state))
+	state := int(atomic.LoadInt32(&sorter.state))
 
 	// If state is Done, we might have cleaned up chunks, so return 0 or cached?
 	// 0 is fine if Done.
 	chunkCount := 0
 	if state != StateDone {
-		chunkCount = len(s.chunkFiles)
+		chunkCount = len(sorter.chunkFiles)
 	}
 
 	return SorterStats{
-		TotalRecords:  atomic.LoadInt64(&s.totalRecords),
-		MergedRecords: atomic.LoadInt64(&s.mergedRecords),
-		BytesWritten:  atomic.LoadInt64(&s.bytesWritten),
+		TotalRecords:  atomic.LoadInt64(&sorter.totalRecords),
+		MergedRecords: atomic.LoadInt64(&sorter.mergedRecords),
+		BytesWritten:  atomic.LoadInt64(&sorter.bytesWritten),
 		ChunkCount:    chunkCount,
 		State:         state,
 	}

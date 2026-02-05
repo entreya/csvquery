@@ -53,62 +53,62 @@ func NewIndexer(config IndexerConfig) *Indexer {
 }
 
 // Run executes the full indexing process
-func (idx *Indexer) Run() error {
+func (indexer *Indexer) Run() error {
 	// startTime := time.Now()
 
 	// Print header
 	fmt.Println("╔══════════════════════════════════════════════════════════════════════════╗")
-	content := fmt.Sprintf("CSVQUERY INDEXER (PIPELINED) v%s", idx.config.Version)
+	content := fmt.Sprintf("CSVQUERY INDEXER (PIPELINED) v%s", indexer.config.Version)
 	padding := 74 - len(content)
 	left := padding / 2
 	right := padding - left
 	fmt.Printf("║%*s%s%*s║\n", left, "", content, right, "")
 	fmt.Println("╚══════════════════════════════════════════════════════════════════════════╝")
-	fmt.Printf("\nInput:    %s\n", idx.config.InputFile)
-	fmt.Printf("Output:   %s\n", idx.config.OutputDir)
+	fmt.Printf("\nInput:    %s\n", indexer.config.InputFile)
+	fmt.Printf("Output:   %s\n", indexer.config.OutputDir)
 
 	// Parse column definitions
-	if err := idx.parseColumns(); err != nil {
+	if err := indexer.parseColumns(); err != nil {
 		return err
 	}
-	fmt.Printf("Indexes:  %d\n", len(idx.colDefs))
-	fmt.Printf("Workers:  %d\n", idx.config.Workers)
-	fmt.Printf("Memory:   %dMB per worker\n\n", idx.config.MemoryMB)
+	fmt.Printf("Indexes:  %d\n", len(indexer.colDefs))
+	fmt.Printf("Workers:  %d\n", indexer.config.Workers)
+	fmt.Printf("Memory:   %dMB per worker\n\n", indexer.config.MemoryMB)
 
 	// Create output directory
-	if err := os.MkdirAll(idx.config.OutputDir, 0755); err != nil {
+	if err := os.MkdirAll(indexer.config.OutputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Create temp directory for Sorter spills
-	idx.tempDir = filepath.Join(idx.config.OutputDir, ".csvquery_temp")
-	if err := os.MkdirAll(idx.tempDir, 0755); err != nil {
+	indexer.tempDir = filepath.Join(indexer.config.OutputDir, ".csvquery_temp")
+	if err := os.MkdirAll(indexer.tempDir, 0755); err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
-	// NOTE: Cleanup registration moved to main.go using idx.Cleanup()
+	// NOTE: Cleanup registration moved to main.go using indexer.Cleanup()
 
 	// Open scanner
 	var err error
-	idx.scanner, err = NewScanner(idx.config.InputFile, idx.config.Separator)
+	indexer.scanner, err = NewScanner(indexer.config.InputFile, indexer.config.Separator)
 	if err != nil {
 		return err
 	}
 	// Propagate worker count to scanner
-	if idx.config.Workers > 0 {
-		idx.scanner.SetWorkers(idx.config.Workers)
+	if indexer.config.Workers > 0 {
+		indexer.scanner.SetWorkers(indexer.config.Workers)
 	}
-	defer func() { _ = idx.scanner.Close() }()
+	defer func() { _ = indexer.scanner.Close() }()
 
 	// Validate columns
-	for _, cols := range idx.colDefs {
-		if err := idx.scanner.ValidateColumns(cols); err != nil {
+	for _, cols := range indexer.colDefs {
+		if err := indexer.scanner.ValidateColumns(cols); err != nil {
 			return err
 		}
 	}
 
 	// Initialize Channels and Sorters
-	numIndexes := len(idx.colDefs)
+	numIndexes := len(indexer.colDefs)
 	// Change to buffered channel of SLICES (Batching)
 	channels := make([]chan []common.IndexRecord, numIndexes)
 	errors := make(chan error, numIndexes)
@@ -117,23 +117,23 @@ func (idx *Indexer) Run() error {
 	var wg sync.WaitGroup
 
 	// Start reporting
-	idx.startReporting()
-	defer idx.stopReporting()
+	indexer.startReporting()
+	defer indexer.stopReporting()
 
 	fmt.Println("Phase 1: Starting Pipelined Indexing...")
 
 	// Launch Sorter Consumers (One per index)
-	for i, cols := range idx.colDefs {
+	for i, cols := range indexer.colDefs {
 		// Buffer depth for batches
 		channels[i] = make(chan []common.IndexRecord, 100)
 		wg.Add(1)
 
-		go func(indexIdx int, columns []string, ch <-chan []common.IndexRecord) {
+		go func(indexIdx int, columns []string, batchChannel <-chan []common.IndexRecord) {
 			defer wg.Done()
 			// Normalize index name to lowercase to match QueryEngine expectations
 			colName := strings.ToLower(strings.Join(columns, "_"))
 
-			err := idx.runSorterNode(colName, ch)
+			err := indexer.runSorterNode(colName, batchChannel)
 			if err != nil {
 				errors <- fmt.Errorf("%s: %v", colName, err)
 			} else {
@@ -143,17 +143,17 @@ func (idx *Indexer) Run() error {
 	}
 
 	// Build column indices for scanner
-	colIndices := make([][]int, len(idx.colDefs))
-	for i, cols := range idx.colDefs {
+	colIndices := make([][]int, len(indexer.colDefs))
+	for i, cols := range indexer.colDefs {
 		colIndices[i] = make([]int, len(cols))
 		for j, col := range cols {
-			colIndices[i][j], _ = idx.scanner.GetColumnIndex(col)
+			colIndices[i][j], _ = indexer.scanner.GetColumnIndex(col)
 		}
 	}
 
 	// Prepare per-worker buffers
 	// workerBuffers[workerID][indexID] -> []IndexRecord
-	numWorkers := idx.config.Workers
+	numWorkers := indexer.config.Workers
 	if numWorkers == 0 {
 		numWorkers = runtime.NumCPU()
 	}
@@ -170,8 +170,8 @@ func (idx *Indexer) Run() error {
 	// Start Scanning
 	lastProgress := time.Now()
 
-	err = idx.scanner.Scan(colIndices, func(workerID int, keys [][]byte, offset, line int64) {
-		// keys corresponds to idx.colDefs index
+	err = indexer.scanner.Scan(colIndices, func(workerID int, keys [][]byte, offset, line int64) {
+		// keys corresponds to indexer.colDefs index
 		// Use workerID to access thread-local buffer
 		if workerID >= len(workerBuffers) {
 			// Should not happen if Scanner respects worker count
@@ -213,8 +213,8 @@ func (idx *Indexer) Run() error {
 			}
 		}
 
-		if idx.config.Verbose && time.Since(lastProgress) > 5*time.Second {
-			// fmt.Println(idx.scanner.ScanProgress())
+		if indexer.config.Verbose && time.Since(lastProgress) > 5*time.Second {
+			// fmt.Println(indexer.scanner.ScanProgress())
 			lastProgress = time.Now()
 		}
 	})
@@ -229,8 +229,8 @@ func (idx *Indexer) Run() error {
 	}
 
 	// Close all channels to signal Sorters to finish
-	for _, ch := range channels {
-		close(ch)
+	for _, batchChannel := range channels {
+		close(batchChannel)
 	}
 
 	if err != nil {
@@ -266,8 +266,8 @@ func (idx *Indexer) Run() error {
 	}
 
 	// Stats
-	rows, bytes, elapsed := idx.scanner.GetStats()
-	idx.meta.TotalRows = rows
+	rows, bytes, elapsed := indexer.scanner.GetStats()
+	indexer.meta.TotalRows = rows
 	fmt.Printf("\nStatistics:\n")
 	fmt.Printf("  Rows: %d\n", rows)
 	fmt.Printf("  Size: %.1f GB\n", float64(bytes)/1024/1024/1024)
@@ -275,17 +275,17 @@ func (idx *Indexer) Run() error {
 	fmt.Printf("  Rate: %.0f rows/sec\n", float64(rows)/elapsed.Seconds())
 
 	// Capture CSV DNA for integrity protection
-	if csvMeta, err := idx.calculateFingerprint(); err == nil {
-		idx.meta.CsvSize = csvMeta.size
-		idx.meta.CsvMtime = csvMeta.mtime
-		idx.meta.CsvHash = csvMeta.hash
+	if csvMeta, err := indexer.calculateFingerprint(); err == nil {
+		indexer.meta.CsvSize = csvMeta.size
+		indexer.meta.CsvMtime = csvMeta.mtime
+		indexer.meta.CsvHash = csvMeta.hash
 	}
 
 	// Cleanup temp files
-	idx.Cleanup()
+	indexer.Cleanup()
 
 	// Save metadata
-	if err := idx.saveMeta(); err != nil {
+	if err := indexer.saveMeta(); err != nil {
 		fmt.Printf("⚠️ Failed to save metadata: %v\n", err)
 	}
 
@@ -297,20 +297,20 @@ func (idx *Indexer) Run() error {
 }
 
 // runSorterNode consumes data from channel and feeds the Sorter
-func (idx *Indexer) runSorterNode(name string, ch <-chan []common.IndexRecord) error {
-	csvName := strings.TrimSuffix(filepath.Base(idx.config.InputFile), filepath.Ext(idx.config.InputFile))
-	indexPath := filepath.Join(idx.config.OutputDir, csvName+"_"+name+".cidx")
+func (indexer *Indexer) runSorterNode(name string, batchChannel <-chan []common.IndexRecord) error {
+	csvName := strings.TrimSuffix(filepath.Base(indexer.config.InputFile), filepath.Ext(indexer.config.InputFile))
+	indexPath := filepath.Join(indexer.config.OutputDir, csvName+"_"+name+".cidx")
 	bloomPath := indexPath + ".bloom"
 
 	// Temp dir strictly for this sorter (for external spills)
-	tempSortDir := filepath.Join(idx.tempDir, fmt.Sprintf("sort_%s", name))
+	tempSortDir := filepath.Join(indexer.tempDir, fmt.Sprintf("sort_%s", name))
 	if err := os.MkdirAll(tempSortDir, 0755); err != nil {
 		return fmt.Errorf("failed to create temp sort dir: %w", err)
 	}
 
 	// Memory limit per indexer (shared budget)
-	totalMemBytes := idx.config.MemoryMB * 1024 * 1024
-	numIndexes := len(idx.colDefs)
+	totalMemBytes := indexer.config.MemoryMB * 1024 * 1024
+	numIndexes := len(indexer.colDefs)
 	memoryPerIndex := totalMemBytes / numIndexes
 	if memoryPerIndex < 10*1024*1024 {
 		memoryPerIndex = 10 * 1024 * 1024 // Minimum 10MB per index
@@ -318,18 +318,18 @@ func (idx *Indexer) runSorterNode(name string, ch <-chan []common.IndexRecord) e
 
 	// Initialize Bloom Filter
 	var bloom *common.BloomFilter
-	if idx.config.BloomFPRate > 0 {
+	if indexer.config.BloomFPRate > 0 {
 		// Use a safe initial estimate.
 		// Since we don't know the exact count yet (it's streaming), we estimate.
 		// 10M is a safe fallback default. If it's too small, FP rate increases.
-		bloom = common.NewBloomFilter(10_000_000, idx.config.BloomFPRate)
+		bloom = common.NewBloomFilter(10_000_000, indexer.config.BloomFPRate)
 	}
 
 	sorter := NewSorter(name, indexPath, tempSortDir, memoryPerIndex, bloom)
 
-	idx.sorterMutex.Lock()
-	idx.sorters = append(idx.sorters, sorter)
-	idx.sorterMutex.Unlock()
+	indexer.sorterMutex.Lock()
+	indexer.sorters = append(indexer.sorters, sorter)
+	indexer.sorterMutex.Unlock()
 
 	defer func() {
 		sorter.Cleanup()
@@ -337,9 +337,9 @@ func (idx *Indexer) runSorterNode(name string, ch <-chan []common.IndexRecord) e
 	}()
 
 	// Consume channel (Batches)
-	for batch := range ch {
-		for _, rec := range batch {
-			if err := sorter.Add(rec); err != nil {
+	for batch := range batchChannel {
+		for _, indexRecord := range batch {
+			if err := sorter.Add(indexRecord); err != nil {
 				return err
 			}
 		}
@@ -356,12 +356,12 @@ func (idx *Indexer) runSorterNode(name string, ch <-chan []common.IndexRecord) e
 	fileSize := stat.Size()
 
 	// Update metadata
-	idx.metaMutex.Lock()
-	idx.meta.Indexes[name] = common.IndexStats{
+	indexer.metaMutex.Lock()
+	indexer.meta.Indexes[name] = common.IndexStats{
 		DistinctCount: distinctCount,
 		FileSize:      fileSize,
 	}
-	idx.metaMutex.Unlock()
+	indexer.metaMutex.Unlock()
 
 	// Serialize Bloom Filter
 	if bloom != nil {
@@ -374,10 +374,10 @@ func (idx *Indexer) runSorterNode(name string, ch <-chan []common.IndexRecord) e
 }
 
 // parseColumns parses the JSON column definitions
-func (idx *Indexer) parseColumns() error {
+func (indexer *Indexer) parseColumns() error {
 	// Parse JSON
 	var raw interface{}
-	if err := json.Unmarshal([]byte(idx.config.Columns), &raw); err != nil {
+	if err := json.Unmarshal([]byte(indexer.config.Columns), &raw); err != nil {
 		return fmt.Errorf("failed to parse columns JSON: %w", err)
 	}
 
@@ -388,7 +388,7 @@ func (idx *Indexer) parseColumns() error {
 			switch col := item.(type) {
 			case string:
 				// Single column: "COL1"
-				idx.colDefs = append(idx.colDefs, []string{col})
+				indexer.colDefs = append(indexer.colDefs, []string{col})
 			case []interface{}:
 				// Composite or array: ["COL1"] or ["COL1", "COL2"]
 				var cols []string
@@ -398,7 +398,7 @@ func (idx *Indexer) parseColumns() error {
 					}
 				}
 				if len(cols) > 0 {
-					idx.colDefs = append(idx.colDefs, cols)
+					indexer.colDefs = append(indexer.colDefs, cols)
 				}
 			}
 		}
@@ -406,7 +406,7 @@ func (idx *Indexer) parseColumns() error {
 		return fmt.Errorf("columns must be a JSON array")
 	}
 
-	if len(idx.colDefs) == 0 {
+	if len(indexer.colDefs) == 0 {
 		return fmt.Errorf("no valid column definitions found")
 	}
 
@@ -414,16 +414,16 @@ func (idx *Indexer) parseColumns() error {
 }
 
 // saveMeta writes metadata to JSON file
-func (idx *Indexer) saveMeta() error {
-	idx.meta.CapturedAt = time.Now()
+func (indexer *Indexer) saveMeta() error {
+	indexer.meta.CapturedAt = time.Now()
 
-	data, err := json.MarshalIndent(idx.meta, "", "  ")
+	data, err := json.MarshalIndent(indexer.meta, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	csvName := strings.TrimSuffix(filepath.Base(idx.config.InputFile), filepath.Ext(idx.config.InputFile))
-	metaPath := filepath.Join(idx.config.OutputDir, csvName+"_meta.json")
+	csvName := strings.TrimSuffix(filepath.Base(indexer.config.InputFile), filepath.Ext(indexer.config.InputFile))
+	metaPath := filepath.Join(indexer.config.OutputDir, csvName+"_meta.json")
 	return os.WriteFile(metaPath, data, 0644)
 }
 
@@ -433,8 +433,8 @@ type csvDNA struct {
 	hash  string
 }
 
-func (idx *Indexer) calculateFingerprint() (csvDNA, error) {
-	file, err := os.Open(idx.config.InputFile)
+func (indexer *Indexer) calculateFingerprint() (csvDNA, error) {
+	file, err := os.Open(indexer.config.InputFile)
 	if err != nil {
 		return csvDNA{}, err
 	}
@@ -480,16 +480,16 @@ func (idx *Indexer) calculateFingerprint() (csvDNA, error) {
 }
 
 // Cleanup removes temp files
-func (idx *Indexer) Cleanup() {
+func (indexer *Indexer) Cleanup() {
 	// Remove temp directory
-	if idx.tempDir != "" {
-		_ = os.RemoveAll(idx.tempDir)
+	if indexer.tempDir != "" {
+		_ = os.RemoveAll(indexer.tempDir)
 	}
 }
 
 // startReporting
-func (idx *Indexer) startReporting() {
-	if !idx.config.Verbose {
+func (indexer *Indexer) startReporting() {
+	if !indexer.config.Verbose {
 		return
 	}
 	go func() {
@@ -501,8 +501,8 @@ func (idx *Indexer) startReporting() {
 		for {
 			select {
 			case <-ticker.C:
-				idx.printStatus(startTime)
-			case <-idx.stopReport:
+				indexer.printStatus(startTime)
+			case <-indexer.stopReport:
 				fmt.Println() // New line after progress
 				return
 			}
@@ -510,20 +510,20 @@ func (idx *Indexer) startReporting() {
 	}()
 }
 
-func (idx *Indexer) stopReporting() {
-	if !idx.config.Verbose {
+func (indexer *Indexer) stopReporting() {
+	if !indexer.config.Verbose {
 		return
 	}
-	close(idx.stopReport)
+	close(indexer.stopReport)
 }
 
-func (idx *Indexer) printStatus(startTime time.Time) {
-	rowsScanned, bytesScanned, _ := idx.scanner.GetStats()
+func (indexer *Indexer) printStatus(startTime time.Time) {
+	rowsScanned, bytesScanned, _ := indexer.scanner.GetStats()
 
-	idx.sorterMutex.RLock()
-	sorters := make([]*Sorter, len(idx.sorters))
-	copy(sorters, idx.sorters)
-	idx.sorterMutex.RUnlock()
+	indexer.sorterMutex.RLock()
+	sorters := make([]*Sorter, len(indexer.sorters))
+	copy(sorters, indexer.sorters)
+	indexer.sorterMutex.RUnlock()
 
 	// Determine phase
 	phase := "Scanning"
@@ -555,7 +555,7 @@ func (idx *Indexer) printStatus(startTime time.Time) {
 	etaStr := "calculating..."
 	if phase == "Scanning" && bytesScanned > 0 {
 		// Estimate based on file size
-		fileInfo, err := os.Stat(idx.config.InputFile)
+		fileInfo, err := os.Stat(indexer.config.InputFile)
 		if err == nil && fileInfo.Size() > 0 {
 			progress := float64(bytesScanned) / float64(fileInfo.Size())
 			if progress > 0 {

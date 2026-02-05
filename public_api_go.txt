@@ -1,0 +1,8 @@
+# Public Go API
+
+There are no importable Go packages in this repository. 
+- `cmd/` contains the main binary entry point.
+- `internal/` contains all library logic (not importable by external modules).
+- `main.go` is package `main`.
+
+The Go component is designed exclusively as a private binary for the PHP wrapper.

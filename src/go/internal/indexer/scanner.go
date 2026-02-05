@@ -61,7 +61,7 @@ func NewScanner(filePath, separator string) (*Scanner, error) {
 		return nil, err
 	}
 
-	s := &Scanner{
+	scanner := &Scanner{
 		filePath:  filePath,
 		separator: separator[0], // assume single byte separator
 		data:      data,
@@ -71,23 +71,23 @@ func NewScanner(filePath, separator string) (*Scanner, error) {
 	}
 
 	// Read headers from the first line
-	if err := s.readHeaders(); err != nil {
-		_ = s.Close()
+	if err := scanner.readHeaders(); err != nil {
+		_ = scanner.Close()
 		return nil, err
 	}
 
-	return s, nil
+	return scanner, nil
 }
 
 // readHeaders parses the first row as column headers
-func (s *Scanner) readHeaders() error {
+func (scanner *Scanner) readHeaders() error {
 	// Find first newline
-	idx := bytes.IndexByte(s.data, '\n')
+	idx := bytes.IndexByte(scanner.data, '\n')
 	if idx == -1 {
 		return fmt.Errorf("empty or invalid csv")
 	}
 
-	line := s.data[:idx]
+	line := scanner.data[:idx]
 	// Handle CR
 	if len(line) > 0 && line[len(line)-1] == '\r' {
 		line = line[:len(line)-1]
@@ -99,9 +99,9 @@ func (s *Scanner) readHeaders() error {
 	}
 
 	// Parse headers
-	parts := bytes.Split(line, []byte{s.separator})
-	s.headers = make([]string, len(parts))
-	s.headerMap = make(map[string]int)
+	parts := bytes.Split(line, []byte{scanner.separator})
+	scanner.headers = make([]string, len(parts))
+	scanner.headerMap = make(map[string]int)
 
 	for i, part := range parts {
 		name := string(bytes.TrimSpace(part)) // Trim whitespace
@@ -109,40 +109,40 @@ func (s *Scanner) readHeaders() error {
 		if len(name) >= 2 && name[0] == '"' && name[len(name)-1] == '"' {
 			name = name[1 : len(name)-1]
 		}
-		s.headers[i] = name
+		scanner.headers[i] = name
 		// Map is case-insensitive (store lower)
-		s.headerMap[strings.ToLower(name)] = i
+		scanner.headerMap[strings.ToLower(name)] = i
 	}
 
 	return nil
 }
 
 // GetColumnIndex returns the index of a column by name
-func (s *Scanner) GetColumnIndex(name string) (int, bool) {
-	idx, ok := s.headerMap[strings.ToLower(strings.TrimSpace(name))]
+func (scanner *Scanner) GetColumnIndex(name string) (int, bool) {
+	idx, ok := scanner.headerMap[strings.ToLower(strings.TrimSpace(name))]
 	return idx, ok
 }
 
 // GetHeaders returns all column headers
-func (s *Scanner) GetHeaders() []string {
-	return s.headers
+func (scanner *Scanner) GetHeaders() []string {
+	return scanner.headers
 }
 
 // ValidateColumns checks if all requested columns exist
-func (s *Scanner) ValidateColumns(columns []string) error {
+func (scanner *Scanner) ValidateColumns(columns []string) error {
 	for _, col := range columns {
 		normalized := strings.ToLower(strings.TrimSpace(col))
-		if _, ok := s.headerMap[normalized]; !ok {
-			return fmt.Errorf("column not found: %s (headers: %v)", col, s.headers)
+		if _, ok := scanner.headerMap[normalized]; !ok {
+			return fmt.Errorf("column not found: %s (headers: %v)", col, scanner.headers)
 		}
 	}
 	return nil
 }
 
 // SetWorkers sets the number of parallel workers
-func (s *Scanner) SetWorkers(n int) {
+func (scanner *Scanner) SetWorkers(n int) {
 	if n > 0 {
-		s.workers = n
+		scanner.workers = n
 	}
 }
 
@@ -151,27 +151,27 @@ func (s *Scanner) SetWorkers(n int) {
 // Parameters:
 //   - indexDefs: Array of column index definitions
 //   - handler: Function called for each row (MUST be thread-safe)
-func (s *Scanner) Scan(indexDefs [][]int, handler func(workerID int, keys [][]byte, offset, line int64)) error {
+func (scanner *Scanner) Scan(indexDefs [][]int, handler func(workerID int, keys [][]byte, offset, line int64)) error {
 	// Find start of data (after header)
-	startIdx := bytes.IndexByte(s.data, '\n') + 1
-	if startIdx <= 0 || startIdx >= len(s.data) {
+	startIdx := bytes.IndexByte(scanner.data, '\n') + 1
+	if startIdx <= 0 || startIdx >= len(scanner.data) {
 		return nil // End of file
 	}
 
-	dataSize := len(s.data)
-	chunkSize := (dataSize - startIdx) / s.workers
+	dataSize := len(scanner.data)
+	chunkSize := (dataSize - startIdx) / scanner.workers
 
 	// CRITICAL FIX: Precompute ALL safe boundaries first to prevent gaps/overlaps.
 	// boundaries[i] is the start position for worker i.
 	// boundaries[workers] is dataSize (end sentinel).
-	boundaries := make([]int, s.workers+1)
+	boundaries := make([]int, scanner.workers+1)
 	boundaries[0] = startIdx
-	boundaries[s.workers] = dataSize
+	boundaries[scanner.workers] = dataSize
 
-	for i := 1; i < s.workers; i++ {
+	for i := 1; i < scanner.workers; i++ {
 		hint := startIdx + (i * chunkSize)
 		if hint < dataSize {
-			boundaries[i] = findSafeRecordBoundary(s.data, hint)
+			boundaries[i] = findSafeRecordBoundary(scanner.data, hint)
 		} else {
 			boundaries[i] = dataSize
 		}
@@ -180,7 +180,7 @@ func (s *Scanner) Scan(indexDefs [][]int, handler func(workerID int, keys [][]by
 	// Launch workers with gap-free boundaries
 	var wg sync.WaitGroup
 
-	for i := 0; i < s.workers; i++ {
+	for i := 0; i < scanner.workers; i++ {
 		start := boundaries[i]
 		end := boundaries[i+1]
 
@@ -192,12 +192,12 @@ func (s *Scanner) Scan(indexDefs [][]int, handler func(workerID int, keys [][]by
 		wg.Add(1)
 		go func(chunkStart, chunkEnd int, workerID int) {
 			defer wg.Done()
-			s.processChunk(chunkStart, chunkEnd, workerID, indexDefs, handler)
+			scanner.processChunk(chunkStart, chunkEnd, workerID, indexDefs, handler)
 		}(start, end, i)
 	}
 
 	wg.Wait()
-	s.scanBytes = int64(dataSize)
+	scanner.scanBytes = int64(dataSize)
 	return nil
 }
 
@@ -205,19 +205,19 @@ func (s *Scanner) Scan(indexDefs [][]int, handler func(workerID int, keys [][]by
 // hint is the approximate start position (from simple chunking)
 func findSafeRecordBoundary(data []byte, hint int) int {
 	// First, find the first newline at or after hint
-	pos := hint
-	if pos >= len(data) {
+	currentPosition := hint
+	if currentPosition >= len(data) {
 		return len(data)
 	}
 
 	// Seek to next newline
-	nextNL := bytes.IndexByte(data[pos:], '\n')
+	nextNL := bytes.IndexByte(data[currentPosition:], '\n')
 	if nextNL == -1 {
 		return len(data)
 	}
-	pos += nextNL
+	currentPosition += nextNL
 
-	currentNL := pos
+	currentNL := currentPosition
 
 	loopCount := 0
 
@@ -257,14 +257,14 @@ func findSafeRecordBoundary(data []byte, hint int) int {
 	}
 }
 
-func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, handler func(workerID int, keys [][]byte, offset, line int64)) {
-	if start >= len(s.data) {
+func (scanner *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, handler func(workerID int, keys [][]byte, offset, line int64)) {
+	if start >= len(scanner.data) {
 		return
 	}
 
 	// Clamp end to data length
-	if end > len(s.data) {
-		end = len(s.data)
+	if end > len(scanner.data) {
+		end = len(scanner.data)
 	}
 
 	// Skip if start >= end (can happen with small files and many workers)
@@ -272,13 +272,13 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 		return
 	}
 
-	chunkData := s.data[start:end]
-	chunkLen := len(chunkData)
+	dataChunk := scanner.data[start:end]
+	chunkLen := len(dataChunk)
 	if chunkLen == 0 {
 		return
 	}
 
-	sep := s.separator
+	sep := scanner.separator
 
 	// Reusable buffers per worker
 	keys := make([][]byte, len(indexDefs))
@@ -304,9 +304,9 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 
 	// Use custom separator if not comma
 	if sep == ',' {
-		simd.Scan(chunkData, quotesBitmap, sepsBitmap, newlinesBitmap)
+		simd.Scan(dataChunk, quotesBitmap, sepsBitmap, newlinesBitmap)
 	} else {
-		simd.ScanWithSeparator(chunkData, sep, quotesBitmap, sepsBitmap, newlinesBitmap)
+		simd.ScanWithSeparator(dataChunk, sep, quotesBitmap, sepsBitmap, newlinesBitmap)
 	}
 
 	// Local accumulators for atomics optimization
@@ -349,7 +349,7 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 			if isNewline && !inQuote {
 				// End of line found
 				lineEnd := bytePos
-				lineBytes := chunkData[lineStart:lineEnd]
+				lineBytes := dataChunk[lineStart:lineEnd]
 
 				// Handle CR
 				if len(lineBytes) > 0 && lineBytes[len(lineBytes)-1] == '\r' {
@@ -363,7 +363,7 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 					}
 
 					// Parse line using SIMD bitmaps
-					s.parseLineSimd(lineBytes, sep, int64(start+lineStart), workerID, indexDefs, handler, keys, currentRowValues, &scratchBuf, lineStart, quotesBitmap, sepsBitmap)
+					scanner.parseLineSimd(lineBytes, sep, int64(start+lineStart), workerID, indexDefs, handler, keys, currentRowValues, &scratchBuf, lineStart, quotesBitmap, sepsBitmap)
 					localRowsScanned++
 				}
 
@@ -374,8 +374,8 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 
 		// Periodic progress update (every ~64KB)
 		if wordIdx%1024 == 0 {
-			atomic.AddInt64(&s.scanBytes, localScanBytes)
-			atomic.AddInt64(&s.rowsScanned, localRowsScanned)
+			atomic.AddInt64(&scanner.scanBytes, localScanBytes)
+			atomic.AddInt64(&scanner.rowsScanned, localRowsScanned)
 			localScanBytes = 0
 			localRowsScanned = 0
 		}
@@ -383,7 +383,7 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 
 	// Handle last line (no trailing newline)
 	if lineStart < chunkLen && !inQuote {
-		lineBytes := chunkData[lineStart:]
+		lineBytes := dataChunk[lineStart:]
 
 		// Handle CR
 		if len(lineBytes) > 0 && lineBytes[len(lineBytes)-1] == '\r' {
@@ -394,15 +394,15 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 			for k := range currentRowValues {
 				currentRowValues[k] = nil
 			}
-			s.parseLineSimd(lineBytes, sep, int64(start+lineStart), workerID, indexDefs, handler, keys, currentRowValues, &scratchBuf, lineStart, quotesBitmap, sepsBitmap)
+			scanner.parseLineSimd(lineBytes, sep, int64(start+lineStart), workerID, indexDefs, handler, keys, currentRowValues, &scratchBuf, lineStart, quotesBitmap, sepsBitmap)
 			localRowsScanned++
 		}
 		localScanBytes += int64(chunkLen - lineStart)
 	}
 
 	// Final update
-	atomic.AddInt64(&s.scanBytes, localScanBytes)
-	atomic.AddInt64(&s.rowsScanned, localRowsScanned)
+	atomic.AddInt64(&scanner.scanBytes, localScanBytes)
+	atomic.AddInt64(&scanner.rowsScanned, localRowsScanned)
 }
 
 // parseLineSimd parses a single line using pre-computed SIMD bitmaps.
@@ -414,7 +414,7 @@ func (s *Scanner) processChunk(start, end int, workerID int, indexDefs [][]int, 
 //   - offset: byte offset in the original file
 //   - lineStartInChunk: where this line starts within the chunk (for bitmap indexing)
 //   - quotesBitmap, sepsBitmap: pre-computed bitmaps from SIMD scan
-func (s *Scanner) parseLineSimd(
+func (scanner *Scanner) parseLineSimd(
 	line []byte,
 	sep byte,
 	offset int64,
@@ -521,18 +521,18 @@ func (s *Scanner) parseLineSimd(
 }
 
 // GetStats returns scanning statistics
-func (s *Scanner) GetStats() (rowsScanned int64, bytesRead int64, elapsed time.Duration) {
-	return atomic.LoadInt64(&s.rowsScanned), atomic.LoadInt64(&s.scanBytes), time.Since(s.startTime)
+func (scanner *Scanner) GetStats() (rowsScanned int64, bytesRead int64, elapsed time.Duration) {
+	return atomic.LoadInt64(&scanner.rowsScanned), atomic.LoadInt64(&scanner.scanBytes), time.Since(scanner.startTime)
 }
 
 // Close releases resources
-func (s *Scanner) Close() error {
-	return common.MunmapFile(s.data)
+func (scanner *Scanner) Close() error {
+	return common.MunmapFile(scanner.data)
 }
 
 // ScanProgress returns a human-readable progress string
-func (s *Scanner) ScanProgress() string {
-	elapsed := time.Since(s.startTime)
-	mbRead := float64(s.fileSize) / 1024 / 1024
+func (scanner *Scanner) ScanProgress() string {
+	elapsed := time.Since(scanner.startTime)
+	mbRead := float64(scanner.fileSize) / 1024 / 1024
 	return fmt.Sprintf("Scanned %.1f MB in %v", mbRead, elapsed.Round(time.Millisecond))
 }

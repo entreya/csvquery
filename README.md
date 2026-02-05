@@ -83,8 +83,8 @@ composer require csvquery/csvquery
 Pre-compiled binaries are included in `bin/`. To build from source:
 
 ```bash
-cd go
-go build -ldflags="-s -w" -o ../bin/csvquery
+cd src/go
+go build -ldflags="-s -w" -o ../../bin/csvquery
 ```
 
 Cross-compile for different platforms:
@@ -333,28 +333,16 @@ The `csvquery` binary can be used directly for maintenance and debugging:
 
 ```
 csvquery/
-├── src/                    # PHP source files
-│   ├── CsvQuery.php        # Main entry point
-│   ├── ActiveQuery.php     # Fluent query builder
-│   ├── GoBridge.php        # Go binary interface
-│   ├── SocketClient.php    # UDS client
-│   ├── Command.php         # SQL-like command builder
-│   ├── BloomFilter.php     # PHP bloom filter
-│   └── Models/
-│       ├── Row.php         # Row model
-│       ├── Cell.php        # Cell value wrapper
-│       └── Column.php      # Column wrapper
-├── go/                     # Go source files
-│   ├── main.go             # CLI entry point
-│   ├── go.mod
-│   └── internal/
-│       ├── indexer/        # CSV scanning & indexing
-│       ├── query/          # Query engine & filters
-│       ├── server/         # UDS daemon
-│       ├── common/         # Shared types (BlockReader, BloomFilter)
-│       ├── schema/         # Virtual columns
-│       ├── simd/           # AVX2/SSE4.2 optimizations
-│       └── writer/         # CSV writing
+├── src/
+│   ├── php/                # PHP source files (namespace: CsvQuery\)
+│   │   ├── CsvQuery.php
+│   │   ├── ActiveQuery.php
+│   │   ├── GoBridge.php
+│   │   └── ...
+│   └── go/                 # Go source files
+│       ├── main.go
+│       ├── go.mod
+│       └── internal/       # Internal packages
 ├── bin/                    # Pre-compiled Go binaries
 ├── docs/                   # Extended documentation
 ├── tests/                  # PHP & Go tests
@@ -378,7 +366,7 @@ composer install
 ### Go Tests
 
 ```bash
-cd go
+cd src/go
 go test -v ./internal/...
 go test -bench=. -benchmem ./internal/query/
 ```

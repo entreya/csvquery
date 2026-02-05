@@ -91,7 +91,7 @@ class GoBridge
      */
     private function detectBinary(): string
     {
-        $binDir = dirname(__DIR__) . '/bin';
+        $binDir = dirname(__DIR__, 2) . '/bin';
 
         // Detect OS
         $os = match (PHP_OS_FAMILY) {
@@ -192,8 +192,8 @@ class GoBridge
         ?string $aggCol = null,
         ?string $aggFunc = null
     ): \Generator|array {
-        $bin = $this->getBinaryPath();
-        if (!$bin) {
+        $binaryPath = $this->getBinaryPath();
+        if (!$binaryPath) {
             throw new \RuntimeException("CsvQuery binary not found");
         }
 
@@ -233,8 +233,8 @@ class GoBridge
             $args[] = $aggFunc;
         }
 
-        $cmd = array_map('escapeshellarg', $args);
-        $commandStr = escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $cmd);
+        $escapedArgs = array_map('escapeshellarg', $args);
+        $executionString = escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $escapedArgs);
 
         // If Grouping or Explaining, we expect a JSON response, not a stream
         if ($explain || !empty($groupBy) || !empty($aggFunc)) {
@@ -242,11 +242,11 @@ class GoBridge
             $exitCode = 0;
             
             if ($this->debug) {
-                echo "[DEBUG] Executing (JSON): $commandStr\n";
+                echo "[DEBUG] Executing (JSON): $executionString\n";
             }
 
             // Execute preventing shell expansion but capturing output
-            exec($commandStr . ' 2>&1', $output, $exitCode);
+            exec($executionString . ' 2>&1', $output, $exitCode);
             
             if ($this->debug) {
                  echo "[DEBUG] Exit Code: $exitCode\n";
@@ -283,16 +283,16 @@ class GoBridge
             return $data;
         }
 
-        return $this->streamOutput($commandStr);
+        return $this->streamOutput($executionString);
     }
 
-    private function queryCli(string $commandStr): \Generator 
+    private function queryCli(string $executionString): \Generator 
     {
-        return $this->streamOutput($commandStr);
+        return $this->streamOutput($executionString);
     }
 
     /* Old streamOutput logic kept for CLI fallback */
-    private function streamOutput(string $commandStr): \Generator
+    private function streamOutput(string $executionString): \Generator
     {
         $descriptors = [
             0 => ['pipe', 'r'],
@@ -300,19 +300,19 @@ class GoBridge
             2 => ['pipe', 'w'], // stderr
         ];
 
-        $process = proc_open($commandStr, $descriptors, $pipes);
+        $process = proc_open($executionString, $descriptors, $processPipes);
 
         if ($this->debug) {
-            echo "[DEBUG] Executing: $commandStr\n";
+            echo "[DEBUG] Executing: $executionString\n";
         }
 
         if (!is_resource($process)) {
             throw new \RuntimeException("Failed to start process");
         }
 
-        fclose($pipes[0]);
+        fclose($processPipes[0]);
 
-        while (($line = fgets($pipes[1])) !== false) {
+        while (($line = fgets($processPipes[1])) !== false) {
             $line = trim($line);
             if ($line === '') continue;
 
@@ -325,10 +325,10 @@ class GoBridge
             }
         }
 
-        $stderr = stream_get_contents($pipes[2]);
+        $stderr = stream_get_contents($processPipes[2]);
         $this->lastStderr = $stderr;
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        fclose($processPipes[1]);
+        fclose($processPipes[2]);
 
         $exitCode = proc_close($process);
 
@@ -409,7 +409,7 @@ class GoBridge
      */
     private function execute(array $args, bool $passthrough = false): bool
     {
-        $cmd = escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $args);
+        $executionString = escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $args);
 
         $descriptors = [
             0 => ['pipe', 'r'],  // stdin
@@ -417,21 +417,21 @@ class GoBridge
             2 => ['pipe', 'w'],  // stderr
         ];
 
-        $process = proc_open($cmd, $descriptors, $pipes);
+        $process = proc_open($executionString, $descriptors, $processPipes);
 
         if (!is_resource($process)) {
             throw new \RuntimeException("Failed to start csvquery process");
         }
 
         // Close stdin
-        fclose($pipes[0]);
+        fclose($processPipes[0]);
 
         // Read output
         $stdout = '';
         $stderr = '';
 
         while (true) {
-            $read = [$pipes[1], $pipes[2]];
+            $read = [$processPipes[1], $processPipes[2]];
             $write = null;
             $except = null;
 
@@ -445,7 +445,7 @@ class GoBridge
                     continue;
                 }
 
-                if ($pipe === $pipes[1]) {
+                if ($pipe === $processPipes[1]) {
                     $stdout .= $data;
                     if ($passthrough) {
                         echo $data;
@@ -459,15 +459,15 @@ class GoBridge
             }
 
             // Check if both pipes are closed
-            if (feof($pipes[1]) && feof($pipes[2])) {
+            if (feof($processPipes[1]) && feof($processPipes[2])) {
                 break;
             }
         }
 
         $this->lastStderr = $stderr;
 
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        fclose($processPipes[1]);
+        fclose($processPipes[2]);
 
         $exitCode = proc_close($process);
 
@@ -526,24 +526,24 @@ class GoBridge
             $args[] = json_encode($headers);
         }
 
-        $command = $this->buildCommand($args);
+        $executionString = $this->buildCommand($args);
         
         // Execute
-        $process = proc_open($command, [
+        $process = proc_open($executionString, [
             0 => ['pipe', 'r'], // stdin
             1 => ['pipe', 'w'], // stdout
             2 => ['pipe', 'w'], // stderr
-        ], $pipes);
+        ], $processPipes);
 
         if (!is_resource($process)) {
             throw new \RuntimeException("Failed to launch Go binary");
         }
 
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        fclose($processPipes[0]);
+        $stdout = stream_get_contents($processPipes[1]);
+        $stderr = stream_get_contents($processPipes[2]);
+        fclose($processPipes[1]);
+        fclose($processPipes[2]);
 
         $exitCode = proc_close($process);
 
@@ -644,17 +644,17 @@ class GoBridge
             2 => ['pipe', 'w'],
         ];
 
-        $cmd = escapeshellcmd($this->binaryPath) . ' version';
-        $process = proc_open($cmd, $descriptors, $pipes);
+        $executionString = escapeshellcmd($this->binaryPath) . ' version';
+        $process = proc_open($executionString, $descriptors, $processPipes);
 
         if (!is_resource($process)) {
             return 'unknown';
         }
 
-        fclose($pipes[0]);
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        fclose($processPipes[0]);
+        $output = stream_get_contents($processPipes[1]);
+        fclose($processPipes[1]);
+        fclose($processPipes[2]);
         proc_close($process);
 
         return trim($output);

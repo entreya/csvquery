@@ -1,0 +1,49 @@
+# Public PHP API
+
+## CsvQuery (Entry Point)
+- `__construct(string $csvPath, array $options = [])`
+- `createIndex(array $columns, bool $verbose = false, array $options = []): bool`
+- `find(): ActiveQuery`
+- `where(string|array $column, mixed $value = null): ActiveQuery`
+- `andWhere(string|array $column, mixed $value = null): ActiveQuery`
+- `insert(array $row): void`
+- `batchInsert(array $rows): void`
+- `addColumn(string $name, string $default = '', bool $materialize = false): void`
+- `getHeaders(): array`
+- `validateIntegrity(): bool`
+- `update(array $attributes, array $conditions = []): int`
+- `getGoBridge(): GoBridge` (Technically public but for internal/advanced use)
+
+## ActiveQuery (Fluent Interface)
+- `select(array $columns): self`
+- `where(array|string|null $condition, mixed $value = null): self`
+- `andWhere(array|string $condition, mixed $value = null): self`
+- `orWhere(array|string $condition, mixed $value = null): self`
+- `orderBy(array|string $columns): self`
+- `groupBy(array|string $columns): self`
+- `limit(int $limit): self`
+- `offset(int $offset): self`
+- `all(): array`
+- `one(): array|Row|null`
+- `count(): int`
+- `exists(): bool`
+- `each(int $batchSize = 100): Generator`
+- `batch(int $batchSize = 100): Generator`
+- `scalar(): mixed`
+- `column(): array`
+- `explain(string $format = 'array'): mixed`
+- `getStats(string $format = 'array'): array|string`
+- `sum($column)`
+- `average($column)`
+- `min($column)`
+- `max($column)`
+
+## GoBridge (Low-Level Wrapper)
+- `__construct(array $options = [])`
+- `createIndex(...)`
+- `query(...)`
+- `count(...)`
+- `update(...)`
+- `write(...)`
+- `alter(...)`
+- `getVersion(): string`
