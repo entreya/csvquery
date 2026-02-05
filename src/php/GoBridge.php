@@ -413,9 +413,8 @@ class GoBridge
 
             if ($isWindows) {
                 // Windows: stream_select() works ONLY on sockets, not process file handles.
-                // Fallback: poll with sleep
-                $ready = true; // Always attempt read in non-blocking loop
-                usleep(20000); // 20ms sleep to prevent CPU spin
+                // Fallback: poll with adaptive sleep
+                $ready = true;
             } else {
                 // Linux/Mac: Use stream_select for efficiency
                 $write = null;
@@ -426,8 +425,9 @@ class GoBridge
                 $ready = ($result > 0);
             }
 
+            $gotData = false;
+
             if ($ready) {
-                $gotData = false;
                 foreach ([$processPipes[1], $processPipes[2]] as $pipe) {
                     // Read chunk (non-blocking)
                     $data = fread($pipe, 8192);
@@ -447,7 +447,9 @@ class GoBridge
                 }
                 
                 // If we didn't get data but streams are supposedly open, check if process died
-                if (!$gotData) {
+                if (!$gotData && !$isWindows) {
+                    // On Linux/Mac, stream_select returned > 0 but fread got nothing? 
+                    // Usually means EOF or error, but let's check status just in case.
                     $status = proc_get_status($process);
                     if (!$status['running']) {
                         // Gather any remaining bytes
@@ -466,7 +468,34 @@ class GoBridge
                     }
                 }
             }
+
+            // Windows-specific handling:
+            // If data was received, loop immediately (no sleep) to drain buffer.
+            // If NO data received, check process status and sleep.
+            if ($isWindows) {
+                if (!$gotData) {
+                    $status = proc_get_status($process);
+                    if (!$status['running']) {
+                        // Consume remaining
+                         foreach ([$processPipes[1], $processPipes[2]] as $pipe) {
+                             while (($data = fread($pipe, 8192)) !== false && $data !== '') {
+                                 if ($pipe === $processPipes[1]) {
+                                     $stdout .= $data;
+                                     if ($passthrough) echo $data;
+                                 } else {
+                                     $stderr .= $data;
+                                     if ($passthrough) fwrite(STDERR, $data);
+                                 }
+                             }
+                        }
+                        break;
+                    }
+                    // Process still running but no data -> Sleep briefly
+                    usleep(5000); // 5ms sleep
+                }
+            }
         }
+
 
         $this->lastStderr = $stderr;
 
