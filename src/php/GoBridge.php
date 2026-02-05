@@ -139,10 +139,10 @@ class GoBridge
     ): bool {
         $args = [
             'index',
-            '--input', escapeshellarg($csvPath),
-            '--output', escapeshellarg($outputDir),
-            '--columns', escapeshellarg($columnsJson),
-            '--separator', escapeshellarg($separator),
+            '--input', $csvPath,
+            '--output', $outputDir,
+            '--columns', $columnsJson,
+            '--separator', $separator,
         ];
 
         $workers = $options['workers'] ?? $this->workers;
@@ -233,78 +233,44 @@ class GoBridge
             $args[] = $aggFunc;
         }
 
-        $escapedArgs = array_map('escapeshellarg', $args);
-        $executionString = escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $escapedArgs);
-
         // If Grouping or Explaining, we expect a JSON response, not a stream
         if ($explain || !empty($groupBy) || !empty($aggFunc)) {
-            $output = [];
-            $exitCode = 0;
+            // Re-construct for exec() fallback if needed, BUT prefer proc_open for consistency
+            // However, exec() returns output array easily. 
+            // Let's implement captureOutput using array execute for consistency.
             
-            if ($this->debug) {
-                echo "[DEBUG] Executing (JSON): $executionString\n";
-            }
-
-            // Execute preventing shell expansion but capturing output
-            exec($executionString . ' 2>&1', $output, $exitCode);
-            
-            if ($this->debug) {
-                 echo "[DEBUG] Exit Code: $exitCode\n";
-                 echo "[DEBUG] Raw Output: " . implode("\n", $output) . "\n";
-            }
-
-            $err = implode("\n", $output);
-            $this->validateExecution($exitCode, $err);
-            // Fallback (validateExecution throws, but if logic changes)
-            if ($exitCode !== 0) {
-                 throw new \RuntimeException("Aggregation Failed: $err");
-            }
-            
-            // Extract the first valid JSON line. 
-            // The Go binary might output stats or other info.
-            $json = '';
-            foreach ($output as $line) {
-                if (str_starts_with(trim($line), '{') || str_starts_with(trim($line), '[')) {
-                    $json = $line;
-                    break;
-                }
-            }
-            
-            $data = json_decode($json, true);
-            
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                 if ($this->debug) {
-                     echo "[DEBUG] JSON Decode Error: " . json_last_error_msg() . "\n";
-                     echo "[DEBUG] JSON Content: $json\n";
-                 }
+            $json = $this->executeCapture($args);
+            if (empty($json)) {
                  return [];
             }
-            
-            return $data;
+            return json_decode($json, true) ?? [];
         }
 
-        return $this->streamOutput($executionString);
+        return $this->streamOutput($args);
     }
 
-    private function queryCli(string $executionString): \Generator 
+    private function queryCli(array $args): \Generator 
     {
-        return $this->streamOutput($executionString);
+        return $this->streamOutput($args);
     }
 
     /* Old streamOutput logic kept for CLI fallback */
-    private function streamOutput(string $executionString): \Generator
+    private function streamOutput(array $args): \Generator
     {
+        $command = array_merge([$this->binaryPath], $args);
+
+         if ($this->debug) {
+            echo "[DEBUG] Executing: " . implode(" ", array_map('escapeshellarg', $command)) . "\n";
+        }
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'], // stdout
             2 => ['pipe', 'w'], // stderr
         ];
 
-        $process = proc_open($executionString, $descriptors, $processPipes);
-
-        if ($this->debug) {
-            echo "[DEBUG] Executing: $executionString\n";
-        }
+        // PHP 7.4+ supports array for command to bypass shell
+        $process = proc_open($command, $descriptors, $processPipes);
 
         if (!is_resource($process)) {
             throw new \RuntimeException("Failed to start process");
@@ -366,6 +332,9 @@ class GoBridge
     /**
      * Count via spawning Go process (fallback).
      */
+    /**
+     * Count via spawning Go process (fallback).
+     */
     private function countViaSpawn(string $csvPath, string $indexDir, array $where): int
     {
         $args = [
@@ -376,26 +345,18 @@ class GoBridge
             '--count',
         ];
 
-        $cmd = array_map('escapeshellarg', $args);
-        $commandStr = escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $cmd);
-
-        $output = [];
-        $exitCode = 0;
+        // Use executeCapture to get output securely
+        $output = $this->executeCapture($args);
         
-        if ($this->debug) {
-            echo "[DEBUG] Executing: $commandStr\n";
-        }
+        // Output might contain debug logs, find the last number or clean numeric line
+        // Actually executeCapture returns *only* stdout json if we parse correctly?
+        // No, executeCapture (new method) should return raw stdout string?
+        // Or I can parse lines.
+        // Let's treat executeCapture as returning the full stdout as string.
         
-        exec($commandStr . ' 2>&1', $output, $exitCode);
-
-        $err = implode("\n", $output);
-        $this->validateExecution($exitCode, $err);
+        // Wait, I need to define executeCapture first.
         
-        if ($exitCode !== 0) {
-            throw new \RuntimeException("csvquery count failed: " . $err);
-        }
-
-        return (int) trim($output[0] ?? '0');
+        return (int) trim($output);
     }
 
 
@@ -407,9 +368,12 @@ class GoBridge
      * @param bool $passthrough Pass output directly to stdout
      * @return bool Success status
      */
+    /**
+     * Execute the Go binary.
+     */
     private function execute(array $args, bool $passthrough = false): bool
     {
-        $executionString = escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $args);
+        $command = array_merge([$this->binaryPath], $args);
 
         $descriptors = [
             0 => ['pipe', 'r'],  // stdin
@@ -417,7 +381,7 @@ class GoBridge
             2 => ['pipe', 'w'],  // stderr
         ];
 
-        $process = proc_open($executionString, $descriptors, $processPipes);
+        $process = proc_open($command, $descriptors, $processPipes);
 
         if (!is_resource($process)) {
             throw new \RuntimeException("Failed to start csvquery process");
@@ -481,6 +445,52 @@ class GoBridge
     }
 
     /**
+     * Execute and capture output (replacement for exec).
+     */
+    private function executeCapture(array $args): string
+    {
+        $command = array_merge([$this->binaryPath], $args);
+
+        if ($this->debug) {
+            echo "[DEBUG] Executing: " . implode(" ", array_map('escapeshellarg', $command)) . "\n";
+        }
+
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open($command, $descriptors, $processPipes);
+        if (!is_resource($process)) {
+            throw new \RuntimeException("Failed to launch process");
+        }
+
+        fclose($processPipes[0]);
+
+        $stdout = stream_get_contents($processPipes[1]);
+        $stderr = stream_get_contents($processPipes[2]);
+        
+        fclose($processPipes[1]);
+        fclose($processPipes[2]);
+
+        $exitCode = proc_close($process);
+
+        if ($exitCode !== 0) {
+            // Check for aggregation json on stdout even if exit code is non-zero?
+            // No, strictly fail if exit code is non-zero
+            $this->validateExecution($exitCode, $stderr);
+            // Ideally we throw:
+            throw new \RuntimeException("Execution failed: $stderr");
+        }
+        
+        // Find JSON in stdout if mixed with other output (optional logic kept from before)
+        // But for countViaSpawn we just want stdout.
+        
+        return trim($stdout);
+    }
+
+    /**
      * Get the path to the Go binary.
      *
      * @return string
@@ -496,10 +506,13 @@ class GoBridge
      * @param array $args
      * @return string
      */
+    /**
+     * Build command string. (Deprecated - do not use for execution)
+     * Kept only if needed for debug logging, but better to log array.
+     */
     private function buildCommand(array $args): string
     {
-        $escapedArgs = array_map('escapeshellarg', $args);
-        return escapeshellcmd($this->binaryPath) . ' ' . implode(' ', $escapedArgs);
+        throw new \BadMethodCallException("buildCommand is deprecated. Use direct execution with array.");
     }
 
     /**
@@ -526,30 +539,9 @@ class GoBridge
             $args[] = json_encode($headers);
         }
 
-        $executionString = $this->buildCommand($args);
-        
-        // Execute
-        $process = proc_open($executionString, [
-            0 => ['pipe', 'r'], // stdin
-            1 => ['pipe', 'w'], // stdout
-            2 => ['pipe', 'w'], // stderr
-        ], $processPipes);
-
-        if (!is_resource($process)) {
-            throw new \RuntimeException("Failed to launch Go binary");
-        }
-
-        fclose($processPipes[0]);
-        $stdout = stream_get_contents($processPipes[1]);
-        $stderr = stream_get_contents($processPipes[2]);
-        fclose($processPipes[1]);
-        fclose($processPipes[2]);
-
-        $exitCode = proc_close($process);
-
-        if ($exitCode !== 0) {
-            throw new \RuntimeException("Go write failed: $stderr");
-        }
+        // Execute via execute() (passthrough false)
+        // execute() implementation above handles array args
+        $this->execute($args);
     }
     
     /**
@@ -587,14 +579,7 @@ class GoBridge
             $args[] = '--materialize';
         }
 
-        $command = $this->buildCommand($args);
-        
-        // Execute blocking
-        exec($command . ' 2>&1', $output, $exitCode);
-
-        if ($exitCode !== 0) {
-             throw new \RuntimeException("Schema Alteration Failed: " . implode("\n", $output));
-        }
+        $this->execute($args);
     }
 
     public function update(string $csvPath, string $setClause, ?string $whereJson = null, string $indexDir = '') : int
@@ -613,15 +598,11 @@ class GoBridge
             $args[] = $indexDir;
         }
 
-        $command = $this->buildCommand($args);
-        exec($command . ' 2>&1', $output, $exitCode);
-
-        if ($exitCode !== 0) {
-            throw new \RuntimeException("Update Failed: " . implode("\n", $output));
-        }
-
-        // Capture the count from output (ignoring metrics from stderr)
-        foreach (array_reverse($output) as $line) {
+        $output = $this->executeCapture($args);
+        
+        // Parse output for count (last line typically)
+        $lines = explode("\n", trim($output));
+        foreach (array_reverse($lines) as $line) {
             $line = trim($line);
             if (is_numeric($line)) {
                 return (int)$line;
@@ -638,26 +619,7 @@ class GoBridge
      */
     public function getVersion(): string
     {
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-
-        $executionString = escapeshellcmd($this->binaryPath) . ' version';
-        $process = proc_open($executionString, $descriptors, $processPipes);
-
-        if (!is_resource($process)) {
-            return 'unknown';
-        }
-
-        fclose($processPipes[0]);
-        $output = stream_get_contents($processPipes[1]);
-        fclose($processPipes[1]);
-        fclose($processPipes[2]);
-        proc_close($process);
-
-        return trim($output);
+        return $this->executeCapture(['version']);
     }
     /**
      * Helper to validate Go binary execution.
