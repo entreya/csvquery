@@ -96,6 +96,8 @@ func (scanner *Scanner) readHeaders() error {
 	// Handle BOM (EF BB BF)
 	if len(line) >= 3 && line[0] == 0xEF && line[1] == 0xBB && line[2] == 0xBF {
 		line = line[3:]
+	} else if len(line) >= 2 && ((line[0] == 0xFF && line[1] == 0xFE) || (line[0] == 0xFE && line[1] == 0xFF)) {
+		return fmt.Errorf("UTF-16 encoding detected but not supported. Please convert CSV to UTF-8")
 	}
 
 	// Parse headers
@@ -133,7 +135,8 @@ func (scanner *Scanner) ValidateColumns(columns []string) error {
 	for _, col := range columns {
 		normalized := strings.ToLower(strings.TrimSpace(col))
 		if _, ok := scanner.headerMap[normalized]; !ok {
-			return fmt.Errorf("column not found: %s (headers: %v)", col, scanner.headers)
+			// Use %q to show exact strings (reveals quoting/spacing/newlines)
+			return fmt.Errorf("column not found: %s (detected %d headers: %q)", col, len(scanner.headers), scanner.headers)
 		}
 	}
 	return nil
