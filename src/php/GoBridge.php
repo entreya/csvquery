@@ -407,6 +407,12 @@ class GoBridge
             if (!feof($processPipes[2])) $read[] = $processPipes[2];
 
             if (empty($read)) {
+                if ($exitCodeFromStatus === null) {
+                    $status = proc_get_status($process);
+                    if (!$status['running']) {
+                        $exitCodeFromStatus = $status['exitcode'];
+                    }
+                }
                 break;
             }
 
