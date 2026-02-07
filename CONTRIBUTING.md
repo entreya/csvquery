@@ -9,9 +9,9 @@ Thank you for your interest in contributing to CsvQuery! We welcome contribution
 | Platform | Requirements |
 |----------|-------------|
 | **All** | PHP 8.1+, Composer, Go 1.21+ |
-| **Windows** | TDM-GCC or MSYS2 (for CGO support) |
-| **Linux** | gcc, make (usually pre-installed) |
-| **macOS** | Xcode Command Line Tools |
+| **All** | PHP 8.1+, Composer, Go 1.21+ |
+| **Windows** | No extra requirements (Pure Go) |
+| **Linux/macOS** | No extra requirements (Pure Go) |
 
 ### Setup
 
@@ -64,21 +64,11 @@ cd src/go && go test -v ./internal/...
 2. Run the installer
 3. Verify: `go version`
 
-### Installing GCC (Required for CGO)
-
-CsvQuery uses CGO for some optimizations. Windows users need a GCC compiler:
-
-**Option 1: TDM-GCC (Recommended)**
-1. Download from [jmeubank.github.io/tdm-gcc](https://jmeubank.github.io/tdm-gcc/)
-2. Run installer, select "MinGW-w64 based"
-3. Add to PATH: `C:\TDM-GCC-64\bin`
-
-**Option 2: MSYS2**
-```powershell
-# Install MSYS2 from msys2.org
-# Then in MSYS2 terminal:
-pacman -S mingw-w64-x86_64-gcc
-```
+### Installing GCC (Optional)
+ 
+CsvQuery is built with `CGO_ENABLED=0` by default, so you **do not** need GCC to build or run it. 
+ 
+GCC is only required if you are developing features that explicitly require CGO (Foreign Function Interface), which is currently not used.
 
 ### Troubleshooting Windows Builds
 

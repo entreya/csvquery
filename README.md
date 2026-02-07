@@ -72,7 +72,7 @@ graph TB
 |----------|-------------|
 | **All** | PHP 8.1+, Go 1.21+ |
 | **Linux/macOS** | Unix Domain Socket support (recommended) |
-| **Windows** | TDM-GCC or MSYS2 for CGO (optional) |
+| **Windows** | None (Binary is statically linked) |
 
 ### Via Composer
 
@@ -104,18 +104,7 @@ php scripts/build.php --all     # Build all platforms
 
 ### Windows Notes
 
-Windows users need GCC for CGO support. Choose one:
-
-**TDM-GCC (Recommended):**
-1. Download from [jmeubank.github.io/tdm-gcc](https://jmeubank.github.io/tdm-gcc/)
-2. Install MinGW-w64 variant
-3. Add `C:\TDM-GCC-64\bin` to PATH
-
-**MSYS2:**
-```powershell
-# In MSYS2 terminal
-pacman -S mingw-w64-x86_64-gcc
-```
+The Windows binary is statically linked and does not require MinGW, Cygwin, or WSL to run. Just use the `.exe` as is.
 
 > See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed platform-specific setup.
 
