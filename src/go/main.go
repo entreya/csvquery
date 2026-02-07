@@ -19,8 +19,8 @@ import (
 
 // Version information
 const (
-	Version   = "1.0.1"
-	BuildDate = "2026-02-06"
+	Version   = "1.3.1"
+	BuildDate = "2026-02-07"
 )
 
 // Global state for graceful shutdown
