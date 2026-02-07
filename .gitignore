@@ -40,7 +40,7 @@ go/main
 
 # Build
 /dist/
-/bin/
+# /bin/ - We DO track pre-built binaries for releases
 
 # Large datasets and indexes
 *.csv
