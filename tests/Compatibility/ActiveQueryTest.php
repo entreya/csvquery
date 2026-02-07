@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Entreya\CsvQuery\Tests\Compatibility;
 
 use PHPUnit\Framework\TestCase;
-use Entreya\CsvQuery\CsvQuery;
-use Entreya\CsvQuery\ActiveQuery;
+use Entreya\CsvQuery\Core\CsvQuery;
+use Entreya\CsvQuery\Query\ActiveQuery;
 use Entreya\CsvQuery\Models\Row;
 
 /**

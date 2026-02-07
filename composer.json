@@ -42,10 +42,7 @@
             "Entreya\\CsvQuery\\Query\\": "src/php/Query/",
             "Entreya\\CsvQuery\\Bridge\\": "src/php/Bridge/",
             "Entreya\\CsvQuery\\Models\\": "src/php/Models/"
-        },
-        "files": [
-            "src/php/aliases.php"
-        ]
+        }
     },
     "autoload-dev": {
         "psr-4": {
