@@ -30,11 +30,10 @@ src/php/
 ├── Bridge/                   # Go communication
 │   ├── GoBridge.php          # Binary wrapper, process spawning
 │   └── SocketClient.php      # Unix socket daemon client
-├── Models/                   # Data wrappers
-│   ├── Row.php               # Row object with ArrayAccess
-│   ├── Cell.php              # Cell value wrapper
-│   └── Column.php            # Column metadata
-└── aliases.php               # Backward compatibility (root namespace)
+└── Models/                   # Data wrappers
+    ├── Row.php               # Row object with ArrayAccess
+    ├── Cell.php              # Cell value wrapper
+    └── Column.php            # Column metadata
 ```
 
 ### Module Responsibilities
@@ -94,18 +93,15 @@ src/go/
 
 ---
 
-## Backward Compatibility
+## Import Syntax
 
-Existing imports continue to work via `aliases.php`:
+Use full modular namespace paths:
 
 ```php
-// Old (still works)
-use CsvQuery\CsvQuery;
-use CsvQuery\ActiveQuery;
-
-// New (modular)
-use CsvQuery\Core\CsvQuery;
-use CsvQuery\Query\ActiveQuery;
+use Entreya\CsvQuery\Core\CsvQuery;
+use Entreya\CsvQuery\Query\ActiveQuery;
+use Entreya\CsvQuery\Bridge\GoBridge;
+use Entreya\CsvQuery\Models\Row;
 ```
 
 ---
@@ -116,4 +112,4 @@ use CsvQuery\Query\ActiveQuery;
 2. **Streaming Results**: Generator-based iteration avoids loading all results into memory
 3. **Socket vs Spawn**: Unix socket client provides faster queries for repeated operations
 4. **External Sort**: Enables indexing of files larger than available RAM
-5. **Modular Namespaces**: Clean separation of concerns while maintaining BC
+5. **Modular Namespaces**: Clean separation of concerns with explicit module paths

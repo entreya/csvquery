@@ -108,7 +108,7 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery_windows_a
 <?php
 require 'vendor/autoload.php';
 
-use Entreya\CsvQuery\CsvQuery;
+use Entreya\CsvQuery\Core\CsvQuery;
 
 // 1. Initialize with your CSV file
 $csv = new CsvQuery('/path/to/data.csv', [
@@ -343,11 +343,10 @@ csvquery/
 │   │   ├── Bridge/         # Go binary communication
 │   │   │   ├── GoBridge.php
 │   │   │   └── SocketClient.php
-│   │   ├── Models/         # Data wrappers
-│   │   │   ├── Row.php
-│   │   │   ├── Cell.php
-│   │   │   └── Column.php
-│   │   └── aliases.php     # Backward compatibility
+│   │   └── Models/         # Data wrappers
+│   │       ├── Row.php
+│   │       ├── Cell.php
+│   │       └── Column.php
 │   └── go/                 # Go source files
 │       ├── main.go
 │       ├── go.mod
