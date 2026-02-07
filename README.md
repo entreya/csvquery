@@ -335,22 +335,32 @@ The `csvquery` binary can be used directly for maintenance and debugging:
 csvquery/
 ├── src/
 │   ├── php/                # PHP source files (namespace: CsvQuery\)
-│   │   ├── CsvQuery.php
-│   │   ├── ActiveQuery.php
-│   │   ├── GoBridge.php
-│   │   └── ...
+│   │   ├── Core/           # Entry point, CSV handling
+│   │   │   └── CsvQuery.php
+│   │   ├── Query/          # Query building
+│   │   │   ├── ActiveQuery.php
+│   │   │   └── Command.php
+│   │   ├── Bridge/         # Go binary communication
+│   │   │   ├── GoBridge.php
+│   │   │   └── SocketClient.php
+│   │   ├── Models/         # Data wrappers
+│   │   │   ├── Row.php
+│   │   │   ├── Cell.php
+│   │   │   └── Column.php
+│   │   └── aliases.php     # Backward compatibility
 │   └── go/                 # Go source files
 │       ├── main.go
 │       ├── go.mod
 │       └── internal/       # Internal packages
 ├── bin/                    # Pre-compiled Go binaries
-├── docs/                   # Extended documentation
 ├── tests/                  # PHP & Go tests
-├── examples/               # Usage examples
+├── ARCHITECTURE.md         # Detailed architecture docs
 ├── composer.json
 ├── LICENSE
 └── README.md
 ```
+
+> See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed module documentation.
 
 ---
 

@@ -31,14 +31,17 @@
  * }
  * ```
  *
- * @package CsvQuery
+ * @package CsvQuery\Core
  * @author CsvQuery Team
  * @version 1.2.0
  */
 
 declare(strict_types=1);
 
-namespace CsvQuery;
+namespace CsvQuery\Core;
+
+use CsvQuery\Bridge\GoBridge;
+use CsvQuery\Query\ActiveQuery;
 
 /**
  * Main CsvQuery class - entry point for all operations.

@@ -9,8 +9,9 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery;
+namespace CsvQuery\Query;
 
+use CsvQuery\Core\CsvQuery;
 use CsvQuery\Models\Row;
 
 class ActiveQuery

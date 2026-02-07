@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Auto-starts the daemon if not running.
  */
 
-namespace CsvQuery;
+namespace CsvQuery\Bridge;
 
 class SocketClient
 {

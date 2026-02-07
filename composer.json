@@ -37,8 +37,15 @@
     },
     "autoload": {
         "psr-4": {
-            "CsvQuery\\": "src/php/"
-        }
+            "CsvQuery\\": "src/php/",
+            "CsvQuery\\Core\\": "src/php/Core/",
+            "CsvQuery\\Query\\": "src/php/Query/",
+            "CsvQuery\\Bridge\\": "src/php/Bridge/",
+            "CsvQuery\\Models\\": "src/php/Models/"
+        },
+        "files": [
+            "src/php/aliases.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

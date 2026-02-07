@@ -9,12 +9,12 @@
  * - Process execution
  * - Error handling
  *
- * @package CsvQuery
+ * @package CsvQuery\Bridge
  */
 
 declare(strict_types=1);
 
-namespace CsvQuery;
+namespace CsvQuery\Bridge;
 
 /**
  * Bridge between PHP and the Go csvquery binary.
@@ -91,7 +91,8 @@ class GoBridge
      */
     private function detectBinary(): string
     {
-        $binDir = dirname(__DIR__, 2) . '/bin';
+        // From src/php/Bridge/ go up 3 levels to reach project root/bin
+        $binDir = dirname(__DIR__, 3) . '/bin';
 
         // Detect OS
         $os = match (PHP_OS_FAMILY) {
