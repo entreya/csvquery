@@ -210,14 +210,25 @@ func runQuery(args []string) {
 func runDaemon(args []string) {
 	fs := flag.NewFlagSet("daemon", flag.ExitOnError)
 
-	socket := fs.String("socket", "/tmp/csvquery.sock", "Socket path")
+	socket := fs.String("socket", "/tmp/csvquery.sock", "Socket path (Unix)")
+	host := fs.String("host", "127.0.0.1", "Host (TCP)")
+	port := fs.Int("port", 0, "Port (TCP)")
 	csvPath := fs.String("csv", "", "Path to CSV")
 	indexDir := fs.String("index-dir", "", "Index directory")
 	workers := fs.Int("workers", 50, "Max concurrency")
 
 	_ = fs.Parse(args)
 
-	if err := server.RunDaemon(*socket, *csvPath, *indexDir, *workers); err != nil {
+	network := "unix"
+	address := *socket
+
+	// If port is specified, use TCP
+	if *port > 0 {
+		network = "tcp"
+		address = fmt.Sprintf("%s:%d", *host, *port)
+	}
+
+	if err := server.RunDaemon(network, address, *csvPath, *indexDir, *workers); err != nil {
 		fmt.Fprintf(os.Stderr, "Daemon Error: %v\n", err)
 		os.Exit(1)
 	}

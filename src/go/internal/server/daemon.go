@@ -20,7 +20,8 @@ import (
 
 // DaemonConfig holds configuration for the Unix socket daemon.
 type DaemonConfig struct {
-	SocketPath     string
+	Network        string // "unix" or "tcp"
+	Address        string // Socket path or "host:port"
 	CsvPath        string
 	IndexDir       string
 	MaxConcurrency int
@@ -50,10 +51,18 @@ func NewUDSDaemon(cfg DaemonConfig) *UDSDaemon {
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = 30 * time.Second
 	}
-	if cfg.SocketPath == "" {
-		cfg.SocketPath = os.Getenv("CSVQUERY_SOCKET")
-		if cfg.SocketPath == "" {
-			cfg.SocketPath = "/tmp/csvquery.sock"
+	if cfg.Network == "" {
+		cfg.Network = "unix"
+	}
+	if cfg.Address == "" {
+		// Backwards compatibility for SocketPath if used
+		if cfg.Network == "unix" {
+			cfg.Address = os.Getenv("CSVQUERY_SOCKET")
+			if cfg.Address == "" {
+				cfg.Address = "/tmp/csvquery.sock"
+			}
+		} else {
+			cfg.Address = "127.0.0.1:0" // Default to random port? Or 8080?
 		}
 	}
 
@@ -66,10 +75,12 @@ func NewUDSDaemon(cfg DaemonConfig) *UDSDaemon {
 
 // Start initializes the daemon: loads CSV, builds indexes, starts listening.
 func (d *UDSDaemon) Start() error {
-	// 1. Remove stale socket file if exists
-	if _, err := os.Stat(d.config.SocketPath); err == nil {
-		if err := os.Remove(d.config.SocketPath); err != nil {
-			return fmt.Errorf("failed to remove stale socket: %w", err)
+	// 1. Remove stale socket file if exists (only for unix)
+	if d.config.Network == "unix" {
+		if _, err := os.Stat(d.config.Address); err == nil {
+			if err := os.Remove(d.config.Address); err != nil {
+				return fmt.Errorf("failed to remove stale socket: %w", err)
+			}
 		}
 	}
 
@@ -80,10 +91,10 @@ func (d *UDSDaemon) Start() error {
 		}
 	}
 
-	// 3. Create Unix socket listener
-	listener, err := net.Listen("unix", d.config.SocketPath)
+	// 3. Create listener
+	listener, err := net.Listen(d.config.Network, d.config.Address)
 	if err != nil {
-		return fmt.Errorf("failed to bind socket %s: %w", d.config.SocketPath, err)
+		return fmt.Errorf("failed to bind %s %s: %w", d.config.Network, d.config.Address, err)
 	}
 	d.listener = listener
 
@@ -95,7 +106,7 @@ func (d *UDSDaemon) Start() error {
 		d.Shutdown()
 	}()
 
-	fmt.Printf("CsvQuery Daemon started on %s\n", d.config.SocketPath)
+	fmt.Printf("CsvQuery Daemon started on %s (%s)\n", d.config.Network, d.config.Address)
 	if d.config.CsvPath != "" {
 		fmt.Printf("  CSV: %s (%d rows, %d columns)\n", d.config.CsvPath, d.countRows(), len(d.headers))
 	}
@@ -109,8 +120,13 @@ func (d *UDSDaemon) Start() error {
 		}
 
 		// Set accept deadline to allow periodic shutdown check
+		// Only for UnixListener or TCPListener if supported?
+		// net.Listener doesn't have SetDeadline.
+		// We cast to specific types.
 		if ul, ok := listener.(*net.UnixListener); ok {
 			_ = ul.SetDeadline(time.Now().Add(1 * time.Second))
+		} else if tl, ok := listener.(*net.TCPListener); ok {
+			_ = tl.SetDeadline(time.Now().Add(1 * time.Second))
 		}
 
 		conn, err := listener.Accept()
@@ -127,6 +143,12 @@ func (d *UDSDaemon) Start() error {
 			}
 		}
 
+		// TCP KeepAlive
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			_ = tcpConn.SetKeepAlive(true)
+			_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
+		}
+
 		d.wg.Add(1)
 		go d.handleConnection(conn)
 	}
@@ -140,8 +162,10 @@ func (d *UDSDaemon) Shutdown() {
 	}
 	d.wg.Wait()
 
-	// Cleanup socket file
-	_ = os.Remove(d.config.SocketPath)
+	// Cleanup socket file (only for unix)
+	if d.config.Network == "unix" {
+		_ = os.Remove(d.config.Address)
+	}
 	fmt.Println("Daemon shutdown complete")
 }
 
@@ -420,12 +444,13 @@ func (d *UDSDaemon) handleGroupBy(req DaemonRequest) []byte {
 // handleStatus returns daemon status.
 func (d *UDSDaemon) handleStatus() []byte {
 	return d.successResponse(map[string]interface{}{
-		"status":     "running",
-		"csv":        d.config.CsvPath,
-		"indexDir":   d.config.IndexDir,
-		"rows":       d.countRows(),
-		"columns":    len(d.headers),
-		"socketPath": d.config.SocketPath,
+		"status":   "running",
+		"csv":      d.config.CsvPath,
+		"indexDir": d.config.IndexDir,
+		"rows":     d.countRows(),
+		"columns":  len(d.headers),
+		"network":  d.config.Network,
+		"address":  d.config.Address,
 	})
 }
 
@@ -460,9 +485,10 @@ func (d *UDSDaemon) successResponse(data map[string]interface{}) []byte {
 }
 
 // RunDaemon is the entry point called from main.go
-func RunDaemon(socketPath, csvPath, indexDir string, maxConcurrency int) error {
+func RunDaemon(network, address, csvPath, indexDir string, maxConcurrency int) error {
 	cfg := DaemonConfig{
-		SocketPath:     socketPath,
+		Network:        network,
+		Address:        address,
 		CsvPath:        csvPath,
 		IndexDir:       indexDir,
 		MaxConcurrency: maxConcurrency,

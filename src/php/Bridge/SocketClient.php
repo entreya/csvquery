@@ -39,6 +39,9 @@ class SocketClient
     /** @var string Index directory */
     private string $indexDir;
     
+    /** @var DaemonManager|null Manager instance to keep daemon alive */
+    private ?DaemonManager $daemonManager = null;
+    
     /** @var bool Debug mode */
     public bool $debug = false;
 
@@ -49,7 +52,23 @@ class SocketClient
     {
         $this->binaryPath = $binaryPath;
         $this->indexDir = $indexDir;
-        $this->socketPath = $socketPath ?: (getenv('CSVQUERY_SOCKET') ?: self::DEFAULT_SOCKET);
+        
+        if ($socketPath) {
+            $this->socketPath = $socketPath;
+        } else {
+            // Priority: Env -> File -> Default
+            $env = getenv('CSVQUERY_SOCKET');
+            if ($env) {
+                $this->socketPath = $env;
+            } else {
+                $addrFile = sys_get_temp_dir() . '/csvquery_daemon.addr';
+                if (file_exists($addrFile)) {
+                    $this->socketPath = trim(file_get_contents($addrFile));
+                } else {
+                    $this->socketPath = self::DEFAULT_SOCKET;
+                }
+            }
+        }
     }
 
     /**
@@ -244,15 +263,22 @@ class SocketClient
      */
     private function connect(): void
     {
+        $address = $this->socketPath;
+        
+        // If no scheme, assume unix
+        if (!str_contains($address, '://')) {
+            $address = 'unix://' . $address;
+        }
+
         $this->socket = @stream_socket_client(
-            'unix://' . $this->socketPath,
+            $address,
             $errno,
             $errstr,
             5.0
         );
 
         if ($this->socket === false) {
-            throw new \RuntimeException("Failed to connect to socket: [$errno] $errstr");
+            throw new \RuntimeException("Failed to connect to socket $address: [$errno] $errstr");
         }
 
         stream_set_blocking($this->socket, true);
@@ -281,47 +307,26 @@ class SocketClient
     /**
      * Start the Go daemon in the background.
      */
+    /**
+     * Start the Go daemon using DaemonManager.
+     */
     private function startDaemon(): void
     {
         if (!file_exists($this->binaryPath)) {
             throw new \RuntimeException("Go binary not found: {$this->binaryPath}");
         }
 
-        // Build command
-        $cmd = escapeshellarg($this->binaryPath) . ' daemon';
-        $cmd .= ' --socket ' . escapeshellarg($this->socketPath);
-        if ($this->indexDir !== '') {
-            $cmd .= ' --index-dir ' . escapeshellarg($this->indexDir);
+        try {
+            $this->daemonManager = new DaemonManager($this->binaryPath);
+            $socketUrl = $this->daemonManager->start([
+                'indexDir' => $this->indexDir
+            ]);
+            
+            $this->socketPath = $socketUrl;
+            
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to start daemon: " . $e->getMessage(), 0, $e);
         }
-
-        // Start in background, redirect output to debug log (absolute path next to script)
-        $logPath = dirname(__DIR__) . '/daemon.log';
-        $cmd .= ' > ' . escapeshellarg($logPath) . ' 2>&1 &';
-
-        if ($this->debug) {
-            echo "[SocketClient] Starting daemon: $cmd\n";
-        }
-
-        // Execute
-        exec($cmd);
-
-        // Wait for socket to appear
-        $startTime = microtime(true) * 1000;
-        $timeout = self::STARTUP_TIMEOUT_MS;
-
-        while (!file_exists($this->socketPath)) {
-            $elapsed = (microtime(true) * 1000) - $startTime;
-            if ($elapsed > $timeout) {
-                throw new \RuntimeException(
-                    "Daemon failed to start within {$timeout}ms. " .
-                    "Socket not found: {$this->socketPath}"
-                );
-            }
-            usleep(50000); // 50ms
-        }
-
-        // Additional small delay to ensure it's ready
-        usleep(100000); // 100ms
     }
 
     /**
