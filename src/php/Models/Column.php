@@ -1,6 +1,6 @@
 <?php
 
-namespace CsvQuery\Models;
+namespace Entreya\CsvQuery\Models;
 
 /**
  * Column - Represents a column-oriented view of a row's data.

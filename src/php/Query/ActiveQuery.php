@@ -9,10 +9,10 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery\Query;
+namespace Entreya\CsvQuery\Query;
 
-use CsvQuery\Core\CsvQuery;
-use CsvQuery\Models\Row;
+use Entreya\CsvQuery\Core\CsvQuery;
+use Entreya\CsvQuery\Models\Row;
 
 class ActiveQuery
 {

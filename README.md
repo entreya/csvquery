@@ -108,7 +108,7 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery_windows_a
 <?php
 require 'vendor/autoload.php';
 
-use CsvQuery\CsvQuery;
+use Entreya\CsvQuery\CsvQuery;
 
 // 1. Initialize with your CSV file
 $csv = new CsvQuery('/path/to/data.csv', [
@@ -334,7 +334,7 @@ The `csvquery` binary can be used directly for maintenance and debugging:
 ```
 csvquery/
 ├── src/
-│   ├── php/                # PHP source files (namespace: CsvQuery\)
+│   ├── php/                # PHP source files (namespace: Entreya\CsvQuery\)
 │   │   ├── Core/           # Entry point, CSV handling
 │   │   │   └── CsvQuery.php
 │   │   ├── Query/          # Query building

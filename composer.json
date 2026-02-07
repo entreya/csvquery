@@ -37,11 +37,11 @@
     },
     "autoload": {
         "psr-4": {
-            "CsvQuery\\": "src/php/",
-            "CsvQuery\\Core\\": "src/php/Core/",
-            "CsvQuery\\Query\\": "src/php/Query/",
-            "CsvQuery\\Bridge\\": "src/php/Bridge/",
-            "CsvQuery\\Models\\": "src/php/Models/"
+            "Entreya\\CsvQuery\\": "src/php/",
+            "Entreya\\CsvQuery\\Core\\": "src/php/Core/",
+            "Entreya\\CsvQuery\\Query\\": "src/php/Query/",
+            "Entreya\\CsvQuery\\Bridge\\": "src/php/Bridge/",
+            "Entreya\\CsvQuery\\Models\\": "src/php/Models/"
         },
         "files": [
             "src/php/aliases.php"
@@ -49,7 +49,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "CsvQuery\\Tests\\": "tests/"
+            "Entreya\\CsvQuery\\Tests\\": "tests/"
         }
     },
     "scripts": {

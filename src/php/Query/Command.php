@@ -6,7 +6,7 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery\Query;
+namespace Entreya\CsvQuery\Query;
 
 class Command
 {

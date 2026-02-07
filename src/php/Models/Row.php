@@ -1,6 +1,6 @@
 <?php
 
-namespace CsvQuery\Models;
+namespace Entreya\CsvQuery\Models;
 
 use ArrayAccess;
 use IteratorAggregate;

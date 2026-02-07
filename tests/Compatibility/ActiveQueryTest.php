@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery\Tests\Compatibility;
+namespace Entreya\CsvQuery\Tests\Compatibility;
 
 use PHPUnit\Framework\TestCase;
-use CsvQuery\CsvQuery;
-use CsvQuery\ActiveQuery;
-use CsvQuery\Models\Row;
+use Entreya\CsvQuery\CsvQuery;
+use Entreya\CsvQuery\ActiveQuery;
+use Entreya\CsvQuery\Models\Row;
 
 /**
  * Compatibility tests for ActiveQuery.
@@ -279,7 +279,7 @@ class ActiveQueryTest extends TestCase
         $command = self::$csv->find()
             ->where(['STATUS' => 'active'])
             ->createCommand();
-        $this->assertInstanceOf(\CsvQuery\Command::class, $command);
+        $this->assertInstanceOf(\Entreya\CsvQuery\Query\Command::class, $command);
     }
 
     public function testCommandGetQuery(): void

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery\Tests\Compatibility;
+namespace Entreya\CsvQuery\Tests\Compatibility;
 
 use PHPUnit\Framework\TestCase;
-use CsvQuery\CsvQuery;
-use CsvQuery\ActiveQuery;
+use Entreya\CsvQuery\CsvQuery;
+use Entreya\CsvQuery\ActiveQuery;
 
 /**
  * Compatibility tests for CsvQuery entry point.
@@ -192,7 +192,7 @@ class CsvQueryTest extends TestCase
     public function testGetGoBridge(): void
     {
         $bridge = self::$csv->getGoBridge();
-        $this->assertInstanceOf(\CsvQuery\GoBridge::class, $bridge);
+        $this->assertInstanceOf(\Entreya\CsvQuery\Bridge\GoBridge::class, $bridge);
     }
 
     public function testGetMeta(): void

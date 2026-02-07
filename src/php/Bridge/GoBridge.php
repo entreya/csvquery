@@ -14,7 +14,7 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery\Bridge;
+namespace Entreya\CsvQuery\Bridge;
 
 /**
  * Bridge between PHP and the Go csvquery binary.

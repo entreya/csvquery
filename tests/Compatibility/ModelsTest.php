@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery\Tests\Compatibility;
+namespace Entreya\CsvQuery\Tests\Compatibility;
 
 use PHPUnit\Framework\TestCase;
-use CsvQuery\CsvQuery;
-use CsvQuery\Models\Row;
-use CsvQuery\Models\Cell;
-use CsvQuery\Models\Column;
+use Entreya\CsvQuery\CsvQuery;
+use Entreya\CsvQuery\Models\Row;
+use Entreya\CsvQuery\Models\Cell;
+use Entreya\CsvQuery\Models\Column;
 
 /**
  * Compatibility tests for Model classes.

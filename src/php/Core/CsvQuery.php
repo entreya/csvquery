@@ -38,10 +38,10 @@
 
 declare(strict_types=1);
 
-namespace CsvQuery\Core;
+namespace Entreya\CsvQuery\Core;
 
-use CsvQuery\Bridge\GoBridge;
-use CsvQuery\Query\ActiveQuery;
+use Entreya\CsvQuery\Bridge\GoBridge;
+use Entreya\CsvQuery\Query\ActiveQuery;
 
 /**
  * Main CsvQuery class - entry point for all operations.

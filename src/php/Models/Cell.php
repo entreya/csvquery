@@ -1,6 +1,6 @@
 <?php
 
-namespace CsvQuery\Models;
+namespace Entreya\CsvQuery\Models;
 
 /**
  * Cell - Represents a single cell in a CsvQuery result set.
