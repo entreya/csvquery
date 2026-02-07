@@ -285,7 +285,9 @@ sequenceDiagram
 
 ## ⚡ Performance
 
-Benchmarks on **10GB CSV** (18.3M rows) with MacBook M3 Max / 64GB RAM:
+![Benchmark Comparison](benchmarks/chart.png)
+
+Benchmarks on **1,000,000 rows** (Darwin arm64):
 
 ### Indexing Performance
 
