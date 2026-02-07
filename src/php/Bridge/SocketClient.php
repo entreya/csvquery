@@ -99,7 +99,7 @@ class SocketClient
     public static function isAvailable(): bool
     {
         $socketPath = getenv('CSVQUERY_SOCKET') ?: self::DEFAULT_SOCKET;
-        return file_exists($socketPath);
+        return self::pathExists($socketPath);
     }
 
     /**
@@ -251,7 +251,7 @@ class SocketClient
         }
 
         // Check if socket file exists
-        if (!file_exists($this->socketPath)) {
+        if (!$this->socketFileExists($this->socketPath)) {
             $this->startDaemon();
         }
 
@@ -297,7 +297,7 @@ class SocketClient
         // Wait a bit for daemon to recover if it crashed
         usleep(100000); // 100ms
 
-        if (!file_exists($this->socketPath)) {
+        if (!$this->socketFileExists($this->socketPath)) {
             $this->startDaemon();
         }
 
@@ -330,12 +330,27 @@ class SocketClient
     }
 
     /**
-     * Close the connection on destruction.
+     * Check if socket file exists (handles schemes).
      */
-    public function __destruct()
+    private function socketFileExists(string $address): bool
     {
-        if ($this->socket !== null) {
-            @fclose($this->socket);
+        return self::pathExists($address);
+    }
+
+    /**
+     * Helper to check if a path exists, handling unix:// prefix.
+     */
+    private static function pathExists(string $address): bool
+    {
+        if (str_starts_with($address, 'tcp://')) {
+            return true;
         }
+
+        $path = $address;
+        if (str_starts_with($address, 'unix://')) {
+            $path = substr($address, 7);
+        }
+
+        return file_exists($path);
     }
 }

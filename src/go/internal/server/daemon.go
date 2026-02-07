@@ -293,6 +293,9 @@ func (d *UDSDaemon) processRequest(data []byte) []byte {
 	case "select":
 		return d.handleSelect(req)
 
+	case "query":
+		return d.handleQuery(req)
+
 	case "groupby":
 		return d.handleGroupBy(req)
 
@@ -439,6 +442,61 @@ func (d *UDSDaemon) handleGroupBy(req DaemonRequest) []byte {
 	}
 
 	return d.successResponse(map[string]interface{}{"groups": groups})
+}
+
+// handleQuery handles generic queries (agg, explain, or offsets).
+func (d *UDSDaemon) handleQuery(req DaemonRequest) []byte {
+	csvPath := req.Csv
+	if csvPath == "" {
+		csvPath = d.config.CsvPath
+	}
+
+	cond, err := d.parseWhere(req.Where)
+	if err != nil {
+		return d.errorResponse(err.Error())
+	}
+
+	cfg := query.QueryConfig{
+		CsvPath:   csvPath,
+		IndexDir:  d.config.IndexDir,
+		Where:     cond,
+		Limit:     req.Limit,
+		Offset:    req.Offset,
+		CountOnly: false,                   // Default
+		Explain:   req.Action == "explain", // OR check if req.Action == "query" has explain flag
+		GroupBy:   req.GroupBy,
+		AggFunc:   req.AggFunc,
+		Verbose:   req.Verbose,
+	}
+
+	// Actually, the request might have Explain field if I add it to DaemonRequest
+	// For now, dispatches based on fields:
+	if req.AggFunc != "" || req.GroupBy != "" {
+		// It's an aggregation
+	}
+
+	var outBuf bytes.Buffer
+	engine := query.NewQueryEngine(cfg)
+	engine.Writer = &outBuf
+
+	if err := engine.Run(); err != nil {
+		return d.errorResponse(err.Error())
+	}
+
+	output := strings.TrimSpace(outBuf.String())
+
+	// If it's JSON output (Agg or Explain), return as is (wrapped if needed)
+	if strings.HasPrefix(output, "{") || strings.HasPrefix(output, "[") {
+		// It's JSON from the engine.
+		// We can return it directly as the "data" field or similar.
+		var jsonData interface{}
+		if err := json.Unmarshal([]byte(output), &jsonData); err == nil {
+			return d.successResponse(map[string]interface{}{"data": jsonData})
+		}
+	}
+
+	// Fallback to text (e.g. for simple selects, though select action is preferred)
+	return d.successResponse(map[string]interface{}{"output": output})
 }
 
 // handleStatus returns daemon status.

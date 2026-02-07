@@ -234,6 +234,33 @@ class GoBridge
             $args[] = $aggFunc;
         }
 
+        // Try socket first if enabled
+        if ($this->useSocket) {
+            try {
+                $client = SocketClient::getInstance();
+                
+                // If Grouping or Explaining, we expect a JSON response
+                if ($explain || !empty($groupBy) || !empty($aggFunc)) {
+                    $response = $client->query('query', [
+                        'csv' => $csvPath,
+                        'where' => $where,
+                        'limit' => $limit,
+                        'offset' => $offset,
+                        'groupBy' => $groupBy,
+                        'aggCol' => $aggCol,
+                        'aggFunc' => $aggFunc,
+                    ]);
+                    return $response['data'] ?? [];
+                }
+
+                // Standard select
+                $rows = $client->select($csvPath, $where, $limit, $offset);
+                return $this->arrayToGenerator($rows);
+            } catch (\Exception $e) {
+                // Fallback to spawn
+            }
+        }
+
         // If Grouping or Explaining, we expect a JSON response, not a stream
         if ($explain || !empty($groupBy) || !empty($aggFunc)) {
             // Re-construct for exec() fallback if needed, BUT prefer proc_open for consistency
@@ -248,6 +275,16 @@ class GoBridge
         }
 
         return $this->streamOutput($args);
+    }
+
+    /**
+     * Convert an array of rows to a Generator for API compatibility.
+     */
+    private function arrayToGenerator(array $rows): \Generator
+    {
+        foreach ($rows as $row) {
+            yield $row;
+        }
     }
 
     private function queryCli(array $args): \Generator 
