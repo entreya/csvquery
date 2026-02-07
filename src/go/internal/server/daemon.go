@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/csvquery/csvquery/internal/common"
-	"github.com/csvquery/csvquery/internal/query"
+	"github.com/entreya/csvquery/internal/common"
+	"github.com/entreya/csvquery/internal/query"
 )
 
 // DaemonConfig holds configuration for the Unix socket daemon.

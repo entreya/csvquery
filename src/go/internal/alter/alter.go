@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/csvquery/csvquery/internal/schema"
+	"github.com/entreya/csvquery/internal/schema"
 )
 
 // AlterConfig configures the alteration

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/csvquery/csvquery/internal/common"
+	"github.com/entreya/csvquery/internal/common"
 )
 
 func TestEndToEndPipeline(t *testing.T) {

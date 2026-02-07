@@ -11,10 +11,10 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/csvquery/csvquery/internal/indexer"
-	"github.com/csvquery/csvquery/internal/query"
-	"github.com/csvquery/csvquery/internal/server"
-	"github.com/csvquery/csvquery/internal/writer"
+	"github.com/entreya/csvquery/internal/indexer"
+	"github.com/entreya/csvquery/internal/query"
+	"github.com/entreya/csvquery/internal/server"
+	"github.com/entreya/csvquery/internal/writer"
 )
 
 // Version information

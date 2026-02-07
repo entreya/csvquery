@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/csvquery/csvquery/internal/query"
-	"github.com/csvquery/csvquery/internal/updatemgr"
 	"strconv"
 	"strings"
+
+	"github.com/entreya/csvquery/internal/query"
+	"github.com/entreya/csvquery/internal/updatemgr"
 )
 
 // Config represents update configuration

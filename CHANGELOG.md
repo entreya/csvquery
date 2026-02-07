@@ -48,7 +48,7 @@ This marks the first standalone release of CsvQuery, extracted from the UIMS eva
 
 - **Standalone Library**: Fully independent PHP + Go hybrid library
 - **PSR-4 Autoloading**: `CsvQuery\` namespace following PHP standards
-- **Composer Package**: Available via `csvquery/csvquery`
+- **Composer Package**: Available via `entreya/csvquery`
 - **Pre-compiled Binaries**: Go binaries for Linux/macOS/Windows (AMD64/ARM64)
 - **GitHub Actions CI**: Automated builds and tests
 
@@ -98,7 +98,7 @@ Tested on 10GB CSV (18.3M rows), MacBook M3 Max / 64GB RAM:
 ### Changed
 
 - **Namespace**: Changed from `uims\evaluation\modules\evaluation\csvquery` to `CsvQuery\`
-- **Go Module**: Changed from `module csvquery` to `module github.com/csvquery/csvquery`
+- **Go Module**: Changed from `module csvquery` to `module github.com/entreya/csvquery`
 
 ---
 

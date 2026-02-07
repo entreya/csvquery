@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/csvquery/csvquery/internal/query"
+	"github.com/entreya/csvquery/internal/query"
 )
 
 // ServerConfig holds configuration for the daemon

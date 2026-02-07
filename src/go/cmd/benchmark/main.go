@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/csvquery/csvquery/internal/indexer"
+	"github.com/entreya/csvquery/internal/indexer"
 )
 
 func main() {

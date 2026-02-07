@@ -1,4 +1,4 @@
-module github.com/csvquery/csvquery
+module github.com/entreya/csvquery
 
 go 1.24.0
 

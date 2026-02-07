@@ -14,7 +14,7 @@ Thank you for considering contributing to CsvQuery! This document outlines the g
 
 ```bash
 # Clone the repository
-git clone https://github.com/csvquery/csvquery.git
+git clone https://github.com/entreya/csvquery.git
 cd csvquery
 
 # Install PHP dependencies

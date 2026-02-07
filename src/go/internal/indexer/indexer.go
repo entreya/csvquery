@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/csvquery/csvquery/internal/common"
+	"github.com/entreya/csvquery/internal/common"
 )
 
 // IndexerConfig holds configuration for the indexer

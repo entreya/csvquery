@@ -10,7 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/csvquery/csvquery/internal/common"
+	"github.com/entreya/csvquery/internal/common"
 
 	"github.com/pierrec/lz4/v4"
 )

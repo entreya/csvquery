@@ -23,8 +23,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/csvquery/csvquery/internal/common"
-	"github.com/csvquery/csvquery/internal/simd"
+	"github.com/entreya/csvquery/internal/common"
+	"github.com/entreya/csvquery/internal/simd"
 )
 
 // Scanner reads CSV files efficiently using Mmap and Parallelism

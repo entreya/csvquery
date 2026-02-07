@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/csvquery/csvquery/internal/common"
-	"github.com/csvquery/csvquery/internal/schema"
-	"github.com/csvquery/csvquery/internal/updatemgr"
+	"github.com/entreya/csvquery/internal/common"
+	"github.com/entreya/csvquery/internal/schema"
+	"github.com/entreya/csvquery/internal/updatemgr"
 )
 
 // QueryConfig holds query parameters

@@ -1,6 +1,6 @@
 # CsvQuery
 
-![Build Status](https://img.shields.io/github/actions/workflow/status/csvquery/csvquery/build.yml?branch=main)
+![Build Status](https://img.shields.io/github/actions/workflow/status/entreya/csvquery/build.yml?branch=main)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go&logoColor=white)
@@ -75,7 +75,7 @@ graph TB
 ### Via Composer
 
 ```bash
-composer require csvquery/csvquery
+composer require entreya/csvquery
 ```
 
 ### Building the Go Binary

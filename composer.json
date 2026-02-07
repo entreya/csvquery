@@ -1,5 +1,5 @@
 {
-    "name": "csvquery/csvquery",
+    "name": "entreya/csvquery",
     "description": "High-performance CSV query engine with Go-powered indexing and Yii2-like fluent API",
     "type": "library",
     "license": "MIT",
@@ -19,10 +19,10 @@
             "email": "team@csvquery.dev"
         }
     ],
-    "homepage": "https://github.com/csvquery/csvquery",
+    "homepage": "https://github.com/entreya/csvquery",
     "support": {
-        "issues": "https://github.com/csvquery/csvquery/issues",
-        "source": "https://github.com/csvquery/csvquery"
+        "issues": "https://github.com/entreya/csvquery/issues",
+        "source": "https://github.com/entreya/csvquery"
     },
     "minimum-stability": "stable",
     "require": {
