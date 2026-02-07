@@ -285,7 +285,7 @@ sequenceDiagram
 
 ## ⚡ Performance
 
-![Benchmark Comparison](benchmarks/chart.png)
+![Benchmark Comparison](benchmarks/chart_flat.png)
 
 Benchmarks on **1,000,000 rows** (Darwin arm64):
 
