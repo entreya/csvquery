@@ -2,6 +2,8 @@
 
 /**
  * Command - Mimics Yii2 Command for SQL debugging.
+ *
+ * @package Entreya\CsvQuery\Query
  */
 
 declare(strict_types=1);

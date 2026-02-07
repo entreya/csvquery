@@ -5,6 +5,7 @@
  *
  * This class mimics yii\db\ActiveQuery and yii\db\Query.
  * It provides a fluent interface for building and executing queries on CSV files.
+ * @package Entreya\CsvQuery\Query
  */
 
 declare(strict_types=1);

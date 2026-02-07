@@ -7,6 +7,8 @@ declare(strict_types=1);
  * 
  * Provides fast communication with the Go daemon via Unix Domain Socket.
  * Auto-starts the daemon if not running.
+ *
+ * @package Entreya\CsvQuery\Bridge
  */
 
 namespace Entreya\CsvQuery\Bridge;
