@@ -68,9 +68,11 @@ graph TB
 
 ### Requirements
 
-- PHP 8.1+
-- Go 1.21+ (for building from source)
-- Unix-based OS (Linux/macOS) for UDS support
+| Platform | Requirements |
+|----------|-------------|
+| **All** | PHP 8.1+, Go 1.21+ |
+| **Linux/macOS** | Unix Domain Socket support (recommended) |
+| **Windows** | TDM-GCC or MSYS2 for CGO (optional) |
 
 ### Via Composer
 
@@ -78,27 +80,44 @@ graph TB
 composer require entreya/csvquery
 ```
 
-### Building the Go Binary
+The Go binary is built automatically on install. If Go is not available, pre-compiled binaries for your platform are included.
 
-Pre-compiled binaries are included in `bin/`. To build from source:
-
-```bash
-cd src/go
-go build -ldflags="-s -w" -o ../../bin/csvquery
-```
-
-Cross-compile for different platforms:
+### Build Commands
 
 ```bash
-# Linux AMD64
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery_linux_amd64
+# Build for current platform
+composer build
 
-# macOS ARM64 (Apple Silicon)
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../bin/csvquery_darwin_arm64
+# Build for all platforms
+composer build:all
 
-# Windows AMD64
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ../bin/csvquery_windows_amd64.exe
+# Clean all binaries
+composer build:clean
 ```
+
+### Manual Build
+
+```bash
+php scripts/build.php           # Build for current OS/arch
+php scripts/build.php --all     # Build all platforms
+```
+
+### Windows Notes
+
+Windows users need GCC for CGO support. Choose one:
+
+**TDM-GCC (Recommended):**
+1. Download from [jmeubank.github.io/tdm-gcc](https://jmeubank.github.io/tdm-gcc/)
+2. Install MinGW-w64 variant
+3. Add `C:\TDM-GCC-64\bin` to PATH
+
+**MSYS2:**
+```powershell
+# In MSYS2 terminal
+pacman -S mingw-w64-x86_64-gcc
+```
+
+> See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed platform-specific setup.
 
 ---
 

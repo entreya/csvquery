@@ -51,7 +51,15 @@
     },
     "scripts": {
         "test": "phpunit",
-        "build:go": "cd src/go && go build -ldflags=\"-s -w\" -o ../../bin/csvquery"
+        "build": "php scripts/build.php",
+        "build:all": "php scripts/build.php --all",
+        "build:clean": "php scripts/build.php --clean",
+        "post-install-cmd": [
+            "@php scripts/build.php 2>&1 || echo 'Note: Go build skipped. Run composer build manually if needed.'"
+        ],
+        "post-update-cmd": [
+            "@php scripts/build.php 2>&1 || echo 'Note: Go build skipped. Run composer build manually if needed.'"
+        ]
     },
     "config": {
         "sort-packages": true
