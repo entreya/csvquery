@@ -8,6 +8,8 @@
 
 **CsvQuery** is a high-performance query engine that treats massive CSV files (10GB - 1TB+) like searchable databases. It uses a **PHP + Go Sidecar Architecture** to achieve sub-millisecond query latencies without the overhead of traditional database systems.
 
+> 📚 **Check out the comprehensive documentation at [entreya.github.io/csvquery-docs](https://entreya.github.io/csvquery-docs/)**
+
 ## ✨ Key Features
 
 - 🚀 **Blazing Fast**: SIMD-accelerated CSV parsing (AVX2/SSE4.2) at 10GB/s+
