@@ -469,12 +469,6 @@ func (d *UDSDaemon) handleQuery(req DaemonRequest) []byte {
 		Verbose:   req.Verbose,
 	}
 
-	// Actually, the request might have Explain field if I add it to DaemonRequest
-	// For now, dispatches based on fields:
-	if req.AggFunc != "" || req.GroupBy != "" {
-		// It's an aggregation
-	}
-
 	var outBuf bytes.Buffer
 	engine := query.NewQueryEngine(cfg)
 	engine.Writer = &outBuf
