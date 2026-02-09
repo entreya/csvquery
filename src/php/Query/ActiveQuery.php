@@ -744,6 +744,9 @@ class ActiveQuery
         }
 
         // Otherwise, results are offsets (Generator or Array) that must be hydrated
+        // Cache select flip array to avoid repeated operations
+        $selectFlip = $this->select ? array_flip($this->select) : null;
+        
         $count = 0;
         foreach ($results as $result) {
             // Expected format: ['offset' => 123, 'line' => 1]
@@ -756,8 +759,8 @@ class ActiveQuery
             if ($row) {
                 // Post-filter in case Go didn't handle all conditions
                 if ($this->applyFilter($row)) {
-                    if ($this->select) {
-                        $row = array_intersect_key($row, array_flip($this->select));
+                    if ($selectFlip !== null) {
+                        $row = array_intersect_key($row, $selectFlip);
                     }
                     // Use line number if available
                     $line = is_array($result) ? ($result['line'] ?? null) : null;
@@ -773,58 +776,70 @@ class ActiveQuery
     private function runFullScan(): \Generator
     {
         $handle = fopen($this->csvQuery->getCsvPath(), 'r');
+        if ($handle === false) {
+            return;
+        }
+        
         $headers = $this->csvQuery->getHeaders();
         $separator = $this->csvQuery->getSeparator();
         
-        fclose($handle);
-    $handle = fopen($this->csvQuery->getCsvPath(), 'r');
-    
-    // Skip header and track offset
-    fgets($handle); 
-    
-    $count = 0;
-    $skipped = 0;
-    $currentLineNumber = 0;
-    $groups = [];
-    
-    while (true) {
-        $rowOffset = ftell($handle);
-        $line = fgets($handle);
-        if ($line === false) break;
-
-        $currentLineNumber++;
-        $data = str_getcsv(trim($line), $separator);
+        // Cache select flip array to avoid repeated operations
+        $selectFlip = $this->select ? array_flip($this->select) : null;
         
-        // Inject Virtual Columns if data is shorter than headers
-        if (count($data) < count($headers)) {
-            $virtuals = $this->csvQuery->getVirtualColumns();
-            // Append virtuals that are in headers but not in data
-            // Assumption: Virtuals are always at the end (due to sort in readHeaders)
-            // We just append defaults for the missing count
-            foreach ($headers as $idx => $header) {
-                if ($idx >= count($data)) {
-                    $data[] = $virtuals[$header] ?? '';
+        // Cache virtual columns
+        $virtuals = $this->csvQuery->getVirtualColumns();
+        $headerCount = count($headers);
+        
+        // Skip header and track offset
+        fgets($handle);
+    
+        $count = 0;
+        $skipped = 0;
+        $currentLineNumber = 0;
+        $groups = [];
+    
+        while (true) {
+            $rowOffset = ftell($handle);
+            $line = fgets($handle);
+            if ($line === false) break;
+
+            $currentLineNumber++;
+            $data = str_getcsv(trim($line), $separator);
+            
+            // Inject Virtual Columns if data is shorter than headers
+            if (count($data) < $headerCount) {
+                // Pad array to header count, then fill virtual column defaults
+                $originalDataCount = count($data);
+                $data = array_pad($data, $headerCount, '');
+                // Fill virtual column defaults (virtuals are appended at the end per readHeaders)
+                for ($idx = $originalDataCount; $idx < $headerCount; $idx++) {
+                    $header = $headers[$idx];
+                    if (isset($virtuals[$header])) {
+                        $data[$idx] = $virtuals[$header];
+                    }
                 }
             }
-        }
 
-        if (count($data) !== count($headers)) {
-            // Still mismatch? Skip or log?
-            continue; 
-        }
+            if (count($data) !== $headerCount) {
+                // Still mismatch? Skip or log?
+                continue; 
+            }
 
-        $row = array_combine($headers, $data);
-        if ($row === false) continue;
+            $row = array_combine($headers, $data);
+            if ($row === false) continue;
 
-        // Apply persistent updates
-        $row = $this->csvQuery->applyOverrides($rowOffset, $row);
+            // Apply persistent updates
+            $row = $this->csvQuery->applyOverrides($rowOffset, $row);
 
-        if ($this->applyFilter($row)) {
+            if ($this->applyFilter($row)) {
                 if ($this->groupBy) {
-                    $groupKey = '';
+                    // Optimize group key construction with implode
+                    $groupKeyParts = [];
                     foreach ($this->groupBy as $col) {
-                        $groupKey .= ($row[$col] ?? '') . '|';
+                        $groupKeyParts[] = $row[$col] ?? '';
                     }
+                    $groupKey = implode('|', $groupKeyParts);
+                    
                     if (!isset($groups[$groupKey])) {
                         $groups[$groupKey] = $row; // Just keep the first one for grouping now
                     }
@@ -836,8 +851,8 @@ class ActiveQuery
                     continue;
                 }
                 
-                if ($this->select) {
-                    $row = array_intersect_key($row, array_flip($this->select));
+                if ($selectFlip !== null) {
+                    $row = array_intersect_key($row, $selectFlip);
                 }
                 
                 yield $this->asArray ? $row : new Row($this->csvQuery, $row, $currentLineNumber);
@@ -855,8 +870,8 @@ class ActiveQuery
                     $skipped++;
                     continue;
                 }
-                if ($this->select) {
-                    $row = array_intersect_key($row, array_flip($this->select));
+                if ($selectFlip !== null) {
+                    $row = array_intersect_key($row, $selectFlip);
                 }
                 yield $this->asArray ? $row : new Row($this->csvQuery, $row);
                 $count++;
