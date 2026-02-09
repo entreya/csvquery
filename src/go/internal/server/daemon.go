@@ -267,7 +267,7 @@ func (d *UDSDaemon) handleConnection(conn net.Conn) {
 type DaemonRequest struct {
 	Action  string            `json:"action"`
 	Csv     string            `json:"csv,omitempty"`
-	Where   map[string]string  `json:"where,omitempty"`
+	Where   map[string]string `json:"where,omitempty"`
 	Column  string            `json:"column,omitempty"`
 	AggFunc string            `json:"aggFunc,omitempty"`
 	Limit   int               `json:"limit,omitempty"`
