@@ -267,13 +267,14 @@ func (d *UDSDaemon) handleConnection(conn net.Conn) {
 type DaemonRequest struct {
 	Action  string            `json:"action"`
 	Csv     string            `json:"csv,omitempty"`
-	Where   map[string]string `json:"where,omitempty"`
+	Where   map[string]string  `json:"where,omitempty"`
 	Column  string            `json:"column,omitempty"`
 	AggFunc string            `json:"aggFunc,omitempty"`
 	Limit   int               `json:"limit,omitempty"`
 	Offset  int               `json:"offset,omitempty"`
 	GroupBy string            `json:"groupBy,omitempty"`
 	Verbose bool              `json:"verbose,omitempty"`
+	Explain bool              `json:"explain,omitempty"`
 }
 
 // processRequest handles a single JSON request.
@@ -294,6 +295,11 @@ func (d *UDSDaemon) processRequest(data []byte) []byte {
 		return d.handleSelect(req)
 
 	case "query":
+		return d.handleQuery(req)
+
+	case "explain":
+		// Explain queries are handled by the same handler as query
+		req.Explain = true
 		return d.handleQuery(req)
 
 	case "groupby":
@@ -462,8 +468,8 @@ func (d *UDSDaemon) handleQuery(req DaemonRequest) []byte {
 		Where:     cond,
 		Limit:     req.Limit,
 		Offset:    req.Offset,
-		CountOnly: false,                   // Default
-		Explain:   req.Action == "explain", // OR check if req.Action == "query" has explain flag
+		CountOnly: false,
+		Explain:   req.Explain,
 		GroupBy:   req.GroupBy,
 		AggFunc:   req.AggFunc,
 		Verbose:   req.Verbose,

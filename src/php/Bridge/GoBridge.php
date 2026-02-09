@@ -241,7 +241,7 @@ class GoBridge
                 
                 // If Grouping or Explaining, we expect a JSON response
                 if ($explain || !empty($groupBy) || !empty($aggFunc)) {
-                    $response = $client->query('query', [
+                    $params = [
                         'csv' => $csvPath,
                         'where' => $where,
                         'limit' => $limit,
@@ -249,7 +249,11 @@ class GoBridge
                         'groupBy' => $groupBy,
                         'aggCol' => $aggCol,
                         'aggFunc' => $aggFunc,
-                    ]);
+                    ];
+                    if ($explain) {
+                        $params['explain'] = true;
+                    }
+                    $response = $client->query('query', $params);
                     return $response['data'] ?? [];
                 }
 
