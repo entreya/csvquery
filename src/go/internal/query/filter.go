@@ -30,6 +30,8 @@ type Condition struct {
 	Value          interface{} `json:"value,omitempty"`
 	Children       []Condition `json:"children,omitempty"`
 	resolvedTarget string      // pre-computed string form of Value, set after parse
+	resolvedColIdx int         // pre-resolved column index for fast evaluation (-1 if unresolved)
+	lowerTarget    string      // pre-lowercased target for LIKE comparisons
 }
 
 // resolveTargets pre-computes valid string targets for faster evaluation
@@ -95,6 +97,87 @@ func (c *Condition) Evaluate(row map[string]string) bool {
 		// Simple wildcard match
 		// TODO: Regex or better globbing if needed
 		return strings.Contains(strings.ToLower(val), strings.ToLower(target))
+	}
+
+	return false
+}
+
+// ResolveColumns pre-maps column names to integer indices for zero-allocation evaluation.
+// Must be called once before using EvaluateFast.
+func (c *Condition) ResolveColumns(headers map[string]int) {
+	c.resolvedColIdx = -1 // default: unresolved
+	if c.Column != "" {
+		if idx, ok := headers[c.Column]; ok {
+			c.resolvedColIdx = idx
+		} else if idx, ok := headers[strings.ToLower(c.Column)]; ok {
+			c.resolvedColIdx = idx
+		}
+	}
+	// Pre-lowercase target for LIKE
+	if c.Operator == OpLike {
+		c.lowerTarget = strings.ToLower(c.resolvedTarget)
+	}
+	for i := range c.Children {
+		c.Children[i].ResolveColumns(headers)
+	}
+}
+
+// EvaluateFast checks if a row matches using pre-resolved column indices.
+// Zero allocations per call — works directly on the []string cols slice.
+func (c *Condition) EvaluateFast(cols []string) bool {
+	switch c.Operator {
+	case "AND":
+		for i := range c.Children {
+			if !c.Children[i].EvaluateFast(cols) {
+				return false
+			}
+		}
+		return true
+	case "OR":
+		for i := range c.Children {
+			if c.Children[i].EvaluateFast(cols) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Leaf nodes
+	idx := c.resolvedColIdx
+	var val string
+	exists := idx >= 0 && idx < len(cols)
+	if exists {
+		val = cols[idx]
+	}
+
+	switch c.Operator {
+	case OpIsNull:
+		return !exists || val == "" || val == "NULL"
+	case OpIsNotNull:
+		return exists && val != "" && val != "NULL"
+	}
+
+	if !exists {
+		return false
+	}
+
+	target := c.resolvedTarget
+
+	switch c.Operator {
+	case OpEq:
+		return val == target
+	case OpNeq:
+		return val != target
+	case OpGt:
+		return val > target
+	case OpLt:
+		return val < target
+	case OpGte:
+		return val >= target
+	case OpLte:
+		return val <= target
+	case OpLike:
+		return strings.Contains(strings.ToLower(val), c.lowerTarget)
 	}
 
 	return false

@@ -332,6 +332,7 @@ func (d *UDSDaemon) handleCount(req DaemonRequest) []byte {
 		Where:     cond,
 		CountOnly: true,
 		Verbose:   req.Verbose,
+		CacheMB:   32,
 	}
 
 	var outBuf bytes.Buffer
@@ -368,6 +369,7 @@ func (d *UDSDaemon) handleSelect(req DaemonRequest) []byte {
 		Limit:    req.Limit,
 		Offset:   req.Offset,
 		Verbose:  req.Verbose,
+		CacheMB:  32,
 	}
 
 	var outBuf bytes.Buffer
@@ -431,6 +433,7 @@ func (d *UDSDaemon) handleGroupBy(req DaemonRequest) []byte {
 		GroupBy:  groupCol,
 		AggFunc:  aggFunc,
 		Verbose:  req.Verbose,
+		CacheMB:  32,
 	}
 
 	var outBuf bytes.Buffer
@@ -473,6 +476,7 @@ func (d *UDSDaemon) handleQuery(req DaemonRequest) []byte {
 		GroupBy:   req.GroupBy,
 		AggFunc:   req.AggFunc,
 		Verbose:   req.Verbose,
+		CacheMB:   32,
 	}
 
 	var outBuf bytes.Buffer

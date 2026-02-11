@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/pierrec/lz4/v4"
 )
@@ -164,15 +166,19 @@ func (bw *BlockWriter) Close() error {
 	return nil
 }
 
-// BlockReader handles reading compressed blocks
+// BlockReader handles reading compressed blocks.
+// Supports two modes: seek-based (via io.ReadSeeker) and mmap-based (zero-copy).
 type BlockReader struct {
-	r       io.ReadSeeker
-	Footer  SparseIndex
-	compBuf []byte        // reusable buffer for compressed block data
-	recBuf  []IndexRecord // reusable buffer for decompressed records
+	r         io.ReadSeeker // nil when using mmap mode
+	mmapData  []byte        // non-nil when using mmap mode (zero-copy)
+	Footer    SparseIndex
+	Cache     *BlockCache   // optional LRU cache for decompressed blocks
+	compBuf   []byte        // reusable buffer for compressed block data
+	decompBuf []byte        // reusable buffer for decompressed block data
+	recBuf    []IndexRecord // reusable buffer for decompressed records
 }
 
-// NewBlockReader initializes a reader and loads the SparseIndex
+// NewBlockReader initializes a reader and loads the SparseIndex (seek-based mode).
 func NewBlockReader(r io.ReadSeeker) (*BlockReader, error) {
 	// 1. Seek to end - 8 to get footer length
 	if _, err := r.Seek(-8, io.SeekEnd); err != nil {
@@ -206,44 +212,148 @@ func NewBlockReader(r io.ReadSeeker) (*BlockReader, error) {
 	}, nil
 }
 
-// ReadBlock reads and decompresses a specific block
+// NewBlockReaderMmap creates a mmap-based block reader (zero-copy, minimal memory).
+// The file is memory-mapped and the footer is parsed directly from mapped memory.
+// Call Cleanup() when done to unmap.
+func NewBlockReaderMmap(path string) (*BlockReader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	data, err := MmapFile(f)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data) < 8 {
+		_ = MunmapFile(data)
+		return nil, fmt.Errorf("index file too small: %d bytes", len(data))
+	}
+
+	// Parse footer length from last 8 bytes (zero I/O — direct memory access)
+	footerLen := int64(binary.BigEndian.Uint64(data[len(data)-8:]))
+	footerStart := int64(len(data)) - 8 - footerLen
+	if footerStart < 4 { // must be after CIDX magic
+		_ = MunmapFile(data)
+		return nil, fmt.Errorf("invalid footer: start=%d", footerStart)
+	}
+
+	// Parse footer from mapped memory (zero-copy)
+	var footer SparseIndex
+	if err := json.Unmarshal(data[footerStart:int64(len(data))-8], &footer); err != nil {
+		_ = MunmapFile(data)
+		return nil, err
+	}
+
+	return &BlockReader{
+		mmapData: data,
+		Footer:   footer,
+	}, nil
+}
+
+// Cleanup releases mmap resources. Safe to call on non-mmap readers.
+func (br *BlockReader) Cleanup() {
+	if br.mmapData != nil {
+		_ = MunmapFile(br.mmapData)
+		br.mmapData = nil
+	}
+}
+
+// ReadBlock reads and decompresses a specific block using batch parsing.
+// Decompresses the full block into a flat buffer, then batch-parses all records at once.
+// Uses mmap zero-copy when available, otherwise falls back to seek+read.
+// If a Cache is set, checks/stores decompressed records.
 func (br *BlockReader) ReadBlock(meta BlockMeta) ([]IndexRecord, error) {
-	// Seek to block start
-	if _, err := br.r.Seek(meta.Offset, io.SeekStart); err != nil {
-		return nil, err
+	// Cache check
+	var cacheKey string
+	if br.Cache != nil {
+		cacheKey = fmt.Sprintf("%d:%d", meta.Offset, meta.Length)
+		if cached := br.Cache.Get(cacheKey); cached != nil {
+			return cached, nil
+		}
 	}
 
-	// Read compressed data checking reusable buffer
-	needed := int(meta.Length)
-	if cap(br.compBuf) < needed {
-		br.compBuf = make([]byte, needed)
+	var compData []byte
+
+	if br.mmapData != nil {
+		// Mmap mode: zero-copy slice directly into mapped memory (no syscalls)
+		end := meta.Offset + meta.Length
+		if end > int64(len(br.mmapData)) {
+			return nil, fmt.Errorf("block extends past mmap boundary: %d > %d", end, len(br.mmapData))
+		}
+		compData = br.mmapData[meta.Offset:end]
+	} else {
+		// Seek mode: traditional file I/O
+		if _, err := br.r.Seek(meta.Offset, io.SeekStart); err != nil {
+			return nil, err
+		}
+
+		needed := int(meta.Length)
+		if cap(br.compBuf) < needed {
+			br.compBuf = make([]byte, needed)
+		}
+		br.compBuf = br.compBuf[:needed]
+
+		if _, err := io.ReadFull(br.r, br.compBuf); err != nil {
+			return nil, err
+		}
+		compData = br.compBuf
 	}
-	br.compBuf = br.compBuf[:needed]
 
-	if _, err := io.ReadFull(br.r, br.compBuf); err != nil {
-		return nil, err
+	// Decompress entire block into a flat buffer
+	lr := lz4.NewReader(bytes.NewReader(compData))
+
+	// Use decompBuf for decompressed data (reusable)
+	// Estimate: each block is ~64KB uncompressed
+	if cap(br.decompBuf) < BlockTargetSize*2 {
+		br.decompBuf = make([]byte, 0, BlockTargetSize*2)
 	}
+	br.decompBuf = br.decompBuf[:0]
 
-	// Decompress with LZ4
-	lr := lz4.NewReader(bytes.NewReader(br.compBuf))
-
-	// Since we don't know exact uncompressed size easily without reading headers or
-	// assuming block size, we read all.
-	// However, we can use ReadBatchRecords if we knew the count.
-	// But standard Reader is fine since we are reading from memory (lz4 stream).
-	// Wait, we need to read into br.recBuf.
-
-	br.recBuf = br.recBuf[:0]
-
+	// Read all decompressed data using a temp buffer
+	var tmpBuf [8192]byte
 	for {
-		rec, err := ReadRecord(lr)
+		n, err := lr.Read(tmpBuf[:])
+		if n > 0 {
+			br.decompBuf = append(br.decompBuf, tmpBuf[:n]...)
+		}
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
-		br.recBuf = append(br.recBuf, rec)
+	}
+
+	// Batch parse all records at once (single pass, zero per-record overhead)
+	count := len(br.decompBuf) / RecordSize
+	if count == 0 {
+		br.recBuf = br.recBuf[:0]
+		return br.recBuf, nil
+	}
+
+	// Inline batch parse to reuse br.recBuf
+	if cap(br.recBuf) < count {
+		br.recBuf = make([]IndexRecord, count)
+	}
+	br.recBuf = br.recBuf[:count]
+
+	for i := 0; i < count; i++ {
+		offset := i * RecordSize
+		br.recBuf[i] = IndexRecord{
+			Key:    *(*[64]byte)(br.decompBuf[offset : offset+64]),
+			Offset: int64(binary.BigEndian.Uint64(br.decompBuf[offset+64 : offset+72])),
+			Line:   int64(binary.BigEndian.Uint64(br.decompBuf[offset+72 : offset+80])),
+		}
+	}
+
+	// Store in cache (make a copy since recBuf is reused)
+	if br.Cache != nil {
+		cached := make([]IndexRecord, count)
+		copy(cached, br.recBuf)
+		br.Cache.Put(cacheKey, cached)
 	}
 
 	return br.recBuf, nil

@@ -36,6 +36,7 @@ type QueryConfig struct {
 	AggFunc      string     // Aggregation function (count, sum, avg, min, max)
 	Verbose      bool       // Output verbose logging
 	DebugHeaders bool       // Debug raw headers detection
+	CacheMB      int        // LRU block cache size in MB (0 = disabled)
 }
 
 // QueryEngine executes queries against disk indexes
@@ -177,17 +178,16 @@ func (q *QueryEngine) Run() error {
 	// 2. Execution Phase (Index Lookup)
 	execStart := time.Now()
 
-	// Open index file
-	indexFile, err := os.Open(indexPath)
-	if err != nil {
-		return fmt.Errorf("failed to open index: %w", err)
-	}
-	defer func() { _ = indexFile.Close() }()
-
-	// Initialize BlockReader
-	br, err := common.NewBlockReader(indexFile)
+	// Initialize BlockReader using mmap (zero-copy, no syscalls per block)
+	br, err := common.NewBlockReaderMmap(indexPath)
 	if err != nil {
 		return fmt.Errorf("failed to init block reader: %w", err)
+	}
+	defer br.Cleanup()
+
+	// Enable LRU block cache if configured
+	if q.config.CacheMB > 0 {
+		br.Cache = common.NewBlockCache(int64(q.config.CacheMB) * 1024 * 1024)
 	}
 
 	// Try bloom filter first (only if we have a valid search key)
@@ -289,17 +289,12 @@ func (q *QueryEngine) tryCountFromIndex() (int64, bool) {
 		return 0, false
 	}
 
-	// Open first available index
-	f, err := os.Open(matches[0])
+	// Open first available index using mmap
+	br, err := common.NewBlockReaderMmap(matches[0])
 	if err != nil {
 		return 0, false
 	}
-	defer func() { _ = f.Close() }()
-
-	br, err := common.NewBlockReader(f)
-	if err != nil {
-		return 0, false
-	}
+	defer br.Cleanup()
 
 	// Sum RecordCount from all blocks
 	var total int64
@@ -440,6 +435,11 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 	}
 	q.VirtualDefaults = virtualDefaults
 
+	// Pre-resolve filter columns to integer indices (once, not per row)
+	if q.config.Where != nil {
+		q.config.Where.ResolveColumns(headers)
+	}
+
 	var csvF *os.File
 	var csvData []byte
 
@@ -484,7 +484,6 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 	defer func() { _ = writer.Flush() }()
 
 	searchKeyBytes := []byte(searchKey)
-	rowMap := make(map[string]string, len(headers))
 	colsBuf := make([]string, 0, maxCol+1)
 
 	for i := startBlockIdx; i <= endBlockIdx; i++ {
@@ -493,7 +492,9 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 		}
 
 		blockMeta := br.Footer.Blocks[i]
-		fmt.Fprintf(os.Stderr, "DEBUG: Processing Block %d: Key=%s Len=%d\n", i, blockMeta.StartKey, blockMeta.Length)
+		if q.config.Verbose {
+			fmt.Fprintf(os.Stderr, "DEBUG: Processing Block %d: Key=%s Len=%d\n", i, blockMeta.StartKey, blockMeta.Length)
+		}
 
 		if hasSearchKey && blockMeta.StartKey > searchKey {
 			break
@@ -535,7 +536,7 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 				row := csvData[rec.Offset : int(rec.Offset)+rowEnd]
 				row = bytes.TrimSuffix(row, []byte{'\r'})
 
-				// Post-Filter (Where)
+				// Post-Filter (Where) — zero-allocation path
 				if q.config.Where != nil {
 					// Extract cols for filtering
 					cols := extractCols(row, ',', maxCol, colsBuf)
@@ -545,15 +546,8 @@ func (q *QueryEngine) runStandardOutput(br *common.BlockReader, searchKey string
 						cols = append(cols, q.VirtualDefaults...)
 					}
 
-					clear(rowMap)
-					for k, v := range headers {
-						if v < len(cols) {
-							rowMap[strings.ToLower(k)] = cols[v]
-						} else {
-							rowMap[strings.ToLower(k)] = "" // Default to empty string
-						}
-					}
-					if !q.config.Where.Evaluate(rowMap) {
+					if !q.config.Where.EvaluateFast(cols) {
+						colsBuf = cols
 						continue
 					}
 					// Update reuse buffer
@@ -591,6 +585,11 @@ func (q *QueryEngine) runAggregation(br *common.BlockReader, searchKey string, h
 		return fmt.Errorf("failed to read headers: %v", err)
 	}
 	q.VirtualDefaults = virtualDefaults // Store for use in loop
+
+	// Pre-resolve filter columns to integer indices (once, not per row)
+	if q.config.Where != nil {
+		q.config.Where.ResolveColumns(headers)
+	}
 
 	// Check Optimization Eligibility
 	isGroupingByIndex := strings.EqualFold(indexName, q.config.GroupBy)
@@ -668,7 +667,6 @@ func (q *QueryEngine) runAggregation(br *common.BlockReader, searchKey string, h
 	limitReached := false
 
 	searchKeyBytes := []byte(searchKey)
-	rowMap := make(map[string]string, len(headers))
 	colsBuf := make([]string, 0, maxCol+1)
 
 	for i := startBlockIdx; i <= endBlockIdx; i++ {
@@ -744,17 +742,10 @@ func (q *QueryEngine) runAggregation(br *common.BlockReader, searchKey string, h
 				groupVal = cols[groupC]
 			}
 
-			// Where Filter
+			// Where Filter — zero-allocation path
 			if q.config.Where != nil {
-				clear(rowMap)
-				for k, v := range headers {
-					if v < len(cols) {
-						rowMap[strings.ToLower(k)] = cols[v]
-					} else {
-						rowMap[strings.ToLower(k)] = ""
-					}
-				}
-				if !q.config.Where.Evaluate(rowMap) {
+				if !q.config.Where.EvaluateFast(cols) {
+					colsBuf = cols
 					continue
 				}
 			}
@@ -804,23 +795,23 @@ func extractCols(line []byte, sep byte, maxCol int, buf []string) []string {
 			inQuote = !inQuote
 		}
 		if line[i] == sep && !inQuote {
-			val := string(line[start:i])
-			// Trim quotes if present
-			if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
-				val = val[1 : len(val)-1]
+			field := line[start:i]
+			// Trim quotes at byte level (avoids allocating a quoted string)
+			if len(field) >= 2 && field[0] == '"' && field[len(field)-1] == '"' {
+				field = field[1 : len(field)-1]
 			}
-			cols = append(cols, val)
+			cols = append(cols, string(field))
 			start = i + 1
 			if len(cols) > maxCol {
 				return cols
 			}
 		}
 	}
-	val := string(line[start:])
-	if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
-		val = val[1 : len(val)-1]
+	field := line[start:]
+	if len(field) >= 2 && field[0] == '"' && field[len(field)-1] == '"' {
+		field = field[1 : len(field)-1]
 	}
-	cols = append(cols, val)
+	cols = append(cols, string(field))
 	return cols
 }
 
@@ -987,6 +978,11 @@ func (q *QueryEngine) runFullScan() error {
 	}
 	q.VirtualDefaults = virtualDefaults
 
+	// Pre-resolve filter columns to integer indices (once, not per row)
+	if q.config.Where != nil {
+		q.config.Where.ResolveColumns(headers)
+	}
+
 	// Header Map for Indexing
 	headerMap := make(map[string]int)
 	for k, v := range headers {
@@ -1016,7 +1012,6 @@ func (q *QueryEngine) runFullScan() error {
 	count := int64(0)
 	skipped := 0
 
-	rowMap := make(map[string]string, len(headers))
 	colsBuf := make([]string, 0, len(headers))
 
 	// Max column index
@@ -1060,14 +1055,8 @@ func (q *QueryEngine) runFullScan() error {
 		}
 
 		if q.config.Where != nil {
-			clear(rowMap)
-			for k, v := range headers {
-				if v < len(cols) {
-					rowMap[strings.ToLower(k)] = cols[v]
-				}
-			}
-
-			if !q.config.Where.Evaluate(rowMap) {
+			if !q.config.Where.EvaluateFast(cols) {
+				colsBuf = cols
 				continue
 			}
 		}

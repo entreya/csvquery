@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
+	"math"
 	"os"
 )
 
@@ -48,7 +49,7 @@ func NewBloomFilter(n int, fpRate float64) *BloomFilter {
 	// Calculate optimal size: m = -n * ln(p) / (ln(2)^2)
 	// ln(2)^2 ≈ 0.4804
 	// For 1% FP rate: m ≈ 9.6n bits
-	m := int(-float64(n) * ln(fpRate) / 0.4804)
+	m := int(-float64(n) * math.Log(fpRate) / 0.4804)
 	if m < 1024 {
 		m = 1024
 	}
@@ -70,25 +71,6 @@ func NewBloomFilter(n int, fpRate float64) *BloomFilter {
 		hashCount: k,
 		count:     0,
 	}
-}
-
-// ln returns natural logarithm (approximation sufficient for bloom filter)
-func ln(x float64) float64 {
-	// Use log approximation: ln(x) = 2.302585 * log10(x)
-	// For our use case, we can use a simpler calculation
-	if x == 0.01 {
-		return -4.605 // ln(0.01)
-	}
-	if x == 0.001 {
-		return -6.907 // ln(0.001)
-	}
-	// General approximation
-	result := 0.0
-	for x > 1 {
-		x /= 2.718
-		result += 1
-	}
-	return result + (x - 1)
 }
 
 // Add inserts a key into the filter
