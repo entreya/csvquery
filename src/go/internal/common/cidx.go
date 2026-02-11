@@ -172,7 +172,6 @@ type BlockReader struct {
 	r         io.ReadSeeker // nil when using mmap mode
 	mmapData  []byte        // non-nil when using mmap mode (zero-copy)
 	Footer    SparseIndex
-	Cache     *BlockCache   // optional LRU cache for decompressed blocks
 	compBuf   []byte        // reusable buffer for compressed block data
 	decompBuf []byte        // reusable buffer for decompressed block data
 	recBuf    []IndexRecord // reusable buffer for decompressed records
@@ -264,17 +263,7 @@ func (br *BlockReader) Cleanup() {
 // ReadBlock reads and decompresses a specific block using batch parsing.
 // Decompresses the full block into a flat buffer, then batch-parses all records at once.
 // Uses mmap zero-copy when available, otherwise falls back to seek+read.
-// If a Cache is set, checks/stores decompressed records.
 func (br *BlockReader) ReadBlock(meta BlockMeta) ([]IndexRecord, error) {
-	// Cache check
-	var cacheKey string
-	if br.Cache != nil {
-		cacheKey = fmt.Sprintf("%d:%d", meta.Offset, meta.Length)
-		if cached := br.Cache.Get(cacheKey); cached != nil {
-			return cached, nil
-		}
-	}
-
 	var compData []byte
 
 	if br.mmapData != nil {
@@ -347,13 +336,6 @@ func (br *BlockReader) ReadBlock(meta BlockMeta) ([]IndexRecord, error) {
 			Offset: int64(binary.BigEndian.Uint64(br.decompBuf[offset+64 : offset+72])),
 			Line:   int64(binary.BigEndian.Uint64(br.decompBuf[offset+72 : offset+80])),
 		}
-	}
-
-	// Store in cache (make a copy since recBuf is reused)
-	if br.Cache != nil {
-		cached := make([]IndexRecord, count)
-		copy(cached, br.recBuf)
-		br.Cache.Put(cacheKey, cached)
 	}
 
 	return br.recBuf, nil

@@ -164,7 +164,6 @@ func runQuery(args []string) {
 	aggCol := fs.String("agg-col", "", "Column to aggregate")
 	aggFunc := fs.String("agg-func", "", "Aggregation function")
 	debugHeaders := fs.Bool("debug-headers", false, "Debug raw headers")
-	cacheMB := fs.Int("cache-mb", 0, "LRU block cache size in MB (0=disabled, 32 recommended for daemon)")
 
 	_ = fs.Parse(args)
 
@@ -199,7 +198,6 @@ func runQuery(args []string) {
 		AggCol:       *aggCol,
 		AggFunc:      *aggFunc,
 		DebugHeaders: *debugHeaders,
-		CacheMB:      *cacheMB,
 	})
 
 	if err := engine.Run(); err != nil {

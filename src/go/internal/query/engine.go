@@ -36,7 +36,6 @@ type QueryConfig struct {
 	AggFunc      string     // Aggregation function (count, sum, avg, min, max)
 	Verbose      bool       // Output verbose logging
 	DebugHeaders bool       // Debug raw headers detection
-	CacheMB      int        // LRU block cache size in MB (0 = disabled)
 }
 
 // QueryEngine executes queries against disk indexes
@@ -184,11 +183,6 @@ func (q *QueryEngine) Run() error {
 		return fmt.Errorf("failed to init block reader: %w", err)
 	}
 	defer br.Cleanup()
-
-	// Enable LRU block cache if configured
-	if q.config.CacheMB > 0 {
-		br.Cache = common.NewBlockCache(int64(q.config.CacheMB) * 1024 * 1024)
-	}
 
 	// Try bloom filter first (only if we have a valid search key)
 	if hasSearchKey {
